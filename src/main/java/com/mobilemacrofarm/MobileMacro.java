@@ -18,19 +18,16 @@ public class MobileMacro implements ModInitializer {
         LOGGER.info("Initializing MobileMacro for Mojo Launcher!");
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // Bypass the KeyMapping registry entirely and read raw keyboard input
             if (client.getWindow() != null) {
-                long window = client.getWindow().getWindow();
-                boolean isPressed = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_O);
+                // Pass the Window object directly instead of the long pointer!
+                boolean isPressed = InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_O);
                 
-                // Toggle exactly once per press (debounce)
                 if (isPressed && !wasKeyPressed) {
                     FarmingMacro.getInstance().toggle(client);
                 }
                 wasKeyPressed = isPressed;
             }
             
-            // Keep the farming logic looping
             FarmingMacro.getInstance().onTick(client);
         });
     }
