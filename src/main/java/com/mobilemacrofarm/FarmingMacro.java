@@ -3,8 +3,8 @@ package com.mobilemacrofarm;
 import com.mobilemacrofarm.input.InputController;
 import com.mobilemacrofarm.rotation.RotationHandler;
 import com.mobilemacrofarm.state.MacroState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 public class FarmingMacro {
     private static final FarmingMacro INSTANCE = new FarmingMacro();
@@ -24,31 +24,31 @@ public class FarmingMacro {
         return INSTANCE;
     }
 
-    public void toggle(MinecraftClient client) {
+    public void toggle(Minecraft client) {
         if (state == MacroState.IDLE) {
             state = MacroState.ALIGNING;
             rotationHandler.startRotation(defaultYaw, defaultPitch);
             if (client.player != null) {
-                client.player.sendMessage(Text.literal("§a[MobileMacro] Started!"), false);
+                client.player.displayClientMessage(Component.literal("§a[MobileMacro] Started!"), false);
             }
         } else {
             stop(client);
         }
     }
 
-    public void stop(MinecraftClient client) {
+    public void stop(Minecraft client) {
         state = MacroState.IDLE;
         InputController.releaseAll(client);
         stuckTicks = 0;
         laneShiftTicks = 0;
         restartTicks = 0;
         if (client.player != null) {
-            client.player.sendMessage(Text.literal("§c[MobileMacro] Stopped!"), false);
+            client.player.displayClientMessage(Component.literal("§c[MobileMacro] Stopped!"), false);
         }
     }
 
-    public void onTick(MinecraftClient client) {
-        if (client.player == null || client.world == null || state == MacroState.IDLE) {
+    public void onTick(Minecraft client) {
+        if (client.player == null || client.level == null || state == MacroState.IDLE) {
             return;
         }
 
@@ -70,18 +70,18 @@ public class FarmingMacro {
         }
     }
 
-    private void handleFarming(MinecraftClient client) {
-        InputController.setPressed(client.options.attackKey, true);
+    private void handleFarming(Minecraft client) {
+        InputController.setPressed(client.options.keyAttack, true);
 
         if (isMovingLeft) {
-            InputController.setPressed(client.options.leftKey, true);
-            InputController.setPressed(client.options.rightKey, false);
+            InputController.setPressed(client.options.keyLeft, true);
+            InputController.setPressed(client.options.keyRight, false);
         } else {
-            InputController.setPressed(client.options.rightKey, true);
-            InputController.setPressed(client.options.leftKey, false);
+            InputController.setPressed(client.options.keyRight, true);
+            InputController.setPressed(client.options.keyLeft, false);
         }
 
-        double speed = client.player.getVelocity().horizontalLengthSquared();
+        double speed = client.player.getDeltaMovement().horizontalDistanceSqr();
         if (speed < 0.001) {
             stuckTicks++;
             if (stuckTicks > 5) {
@@ -93,26 +93,26 @@ public class FarmingMacro {
         }
     }
 
-    private void handleLaneShift(MinecraftClient client) {
+    private void handleLaneShift(Minecraft client) {
         InputController.releaseAll(client);
 
         if (laneShiftTicks < 6) {
-            InputController.setPressed(client.options.forwardKey, true);
+            InputController.setPressed(client.options.keyUp, true);
             laneShiftTicks++;
         } else {
-            InputController.setPressed(client.options.forwardKey, false);
+            InputController.setPressed(client.options.keyUp, false);
             isMovingLeft = !isMovingLeft;
             laneShiftTicks = 0;
             state = MacroState.FARMING;
         }
     }
 
-    private void handleRestart(MinecraftClient client) {
+    private void handleRestart(Minecraft client) {
         InputController.releaseAll(client);
 
         if (restartTicks == 0) {
-            if (client.player.networkHandler != null) {
-                client.player.networkHandler.sendCommand("warp garden");
+            if (client.player.connection != null) {
+                client.player.connection.sendCommand("warp garden");
             }
         }
 

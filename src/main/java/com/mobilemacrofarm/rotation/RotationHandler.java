@@ -1,7 +1,7 @@
 package com.mobilemacrofarm.rotation;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.client.Minecraft;
+import net.minecraft.util.Mth;
 
 public class RotationHandler {
     private float targetYaw;
@@ -14,18 +14,18 @@ public class RotationHandler {
         this.rotating = true;
     }
 
-    public boolean updateRotation(MinecraftClient client) {
+    public boolean updateRotation(Minecraft client) {
         if (!rotating || client.player == null) return true;
 
-        float currentYaw = client.player.getYaw();
-        float currentPitch = client.player.getPitch();
+        float currentYaw = client.player.getYRot();
+        float currentPitch = client.player.getXRot();
 
-        float yawDiff = MathHelper.wrapDegrees(targetYaw - currentYaw);
+        float yawDiff = Mth.wrapDegrees(targetYaw - currentYaw);
         float pitchDiff = targetPitch - currentPitch;
 
         if (Math.abs(yawDiff) < 0.8f && Math.abs(pitchDiff) < 0.8f) {
-            client.player.setYaw(targetYaw + (float)(Math.random() * 0.1 - 0.05));
-            client.player.setPitch(targetPitch + (float)(Math.random() * 0.1 - 0.05));
+            client.player.setYRot(targetYaw + (float)(Math.random() * 0.1 - 0.05));
+            client.player.setXRot(targetPitch + (float)(Math.random() * 0.1 - 0.05));
             rotating = false;
             return true;
         }
@@ -33,8 +33,8 @@ public class RotationHandler {
         float stepYaw = yawDiff * 0.2f + (float)(Math.random() * 0.08 - 0.04);
         float stepPitch = pitchDiff * 0.2f + (float)(Math.random() * 0.08 - 0.04);
 
-        client.player.setYaw(currentYaw + stepYaw);
-        client.player.setPitch(currentPitch + stepPitch);
+        client.player.setYRot(currentYaw + stepYaw);
+        client.player.setXRot(currentPitch + stepPitch);
 
         return false;
     }
