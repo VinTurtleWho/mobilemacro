@@ -14,6 +14,7 @@ public class FarmingMacro {
 
     private float defaultYaw = 45.0f;
     private float defaultPitch = 0.0f;
+    private String mode = "cane"; // Default mode
 
     private boolean isMovingLeft = true;
     private int stuckTicks = 0;
@@ -22,16 +23,16 @@ public class FarmingMacro {
 
     public static FarmingMacro getInstance() { return INSTANCE; }
 
-    // --- NEW SETTERS FOR COMMANDS ---
     public void setYaw(float yaw) { this.defaultYaw = yaw; }
     public void setPitch(float pitch) { this.defaultPitch = pitch; }
+    public void setMode(String newMode) { this.mode = newMode; }
 
     public void toggle(Minecraft client) {
         if (state == MacroState.IDLE) {
             state = MacroState.ALIGNING;
             rotationHandler.startRotation(defaultYaw, defaultPitch);
             if (client.player != null) {
-                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Target: " + defaultYaw + " / " + defaultPitch));
+                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Mode: " + mode + " | Target: " + defaultYaw + " / " + defaultPitch));
             }
         } else {
             stop(client);
@@ -75,6 +76,13 @@ public class FarmingMacro {
     private void handleFarming(Minecraft client) {
         InputController.setPressed(client.options.keyAttack, true);
 
+        // Melon mode constantly holds W
+        if (mode.equals("melon")) {
+            InputController.setPressed(client.options.keyUp, true);
+        } else {
+            InputController.setPressed(client.options.keyUp, false);
+        }
+
         if (isMovingLeft) {
             InputController.setPressed(client.options.keyLeft, true);
             InputController.setPressed(client.options.keyRight, false);
@@ -98,14 +106,22 @@ public class FarmingMacro {
     private void handleLaneShift(Minecraft client) {
         InputController.releaseAll(client);
 
-        if (laneShiftTicks < 6) {
-            InputController.setPressed(client.options.keyUp, true);
-            laneShiftTicks++;
-        } else {
-            InputController.setPressed(client.options.keyUp, false);
+        if (mode.equals("melon")) {
+            // Melon just instantly swaps direction when hitting the wall
             isMovingLeft = !isMovingLeft;
             laneShiftTicks = 0;
             state = MacroState.FARMING;
+        } else {
+            // Cane steps forward into the next lane first
+            if (laneShiftTicks < 6) {
+                InputController.setPressed(client.options.keyUp, true);
+                laneShiftTicks++;
+            } else {
+                InputController.setPressed(client.options.keyUp, false);
+                isMovingLeft = !isMovingLeft;
+                laneShiftTicks = 0;
+                state = MacroState.FARMING;
+            }
         }
     }
 
@@ -117,9 +133,7 @@ public class FarmingMacro {
                 client.player.connection.sendCommand("warp garden");
             }
         }
-
         restartTicks++;
-
         if (restartTicks > 100) {
             restartTicks = 0;
             state = MacroState.ALIGNING;
