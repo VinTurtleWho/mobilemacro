@@ -43,11 +43,11 @@ public class MobileMacro implements ModInitializer {
                         String valStr = parts[2].toLowerCase();
 
                         if (type.equals("mode")) {
-                            if (valStr.equals("cane") || valStr.equals("melon")) {
+                            if (valStr.equals("cane") || valStr.equals("melon") || valStr.equals("mushroom")) {
                                 FarmingMacro.getInstance().setMode(valStr);
                                 client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Farming Mode set to " + valStr));
                             } else {
-                                client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Invalid mode! Use 'cane' or 'melon'."));
+                                client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Invalid mode! Use 'cane', 'melon', or 'mushroom'."));
                             }
                         } else if (type.equals("yaw")) {
                             float val = Float.parseFloat(valStr);

@@ -17,6 +17,7 @@ public class FarmingMacro {
     private String mode = "cane"; // Default mode
 
     private boolean isMovingLeft = true;
+    private boolean isMovingForward = true; // Added for mushroom mode
     private int stuckTicks = 0;
     private int laneShiftTicks = 0;
     private int restartTicks = 0;
@@ -76,19 +77,35 @@ public class FarmingMacro {
     private void handleFarming(Minecraft client) {
         InputController.setPressed(client.options.keyAttack, true);
 
-        // Melon mode constantly holds W
-        if (mode.equals("melon")) {
-            InputController.setPressed(client.options.keyUp, true);
-        } else {
-            InputController.setPressed(client.options.keyUp, false);
-        }
-
-        if (isMovingLeft) {
-            InputController.setPressed(client.options.keyLeft, true);
-            InputController.setPressed(client.options.keyRight, false);
-        } else {
-            InputController.setPressed(client.options.keyRight, true);
+        if (mode.equals("mushroom")) {
+            // Mushroom mode strictly uses Forward (W) and Back (S)
             InputController.setPressed(client.options.keyLeft, false);
+            InputController.setPressed(client.options.keyRight, false);
+            
+            if (isMovingForward) {
+                InputController.setPressed(client.options.keyUp, true);
+                InputController.setPressed(client.options.keyDown, false);
+            } else {
+                InputController.setPressed(client.options.keyUp, false);
+                InputController.setPressed(client.options.keyDown, true);
+            }
+        } else {
+            // Cane and Melon modes
+            InputController.setPressed(client.options.keyDown, false); // S is never used here
+
+            if (mode.equals("melon")) {
+                InputController.setPressed(client.options.keyUp, true);
+            } else {
+                InputController.setPressed(client.options.keyUp, false);
+            }
+
+            if (isMovingLeft) {
+                InputController.setPressed(client.options.keyLeft, true);
+                InputController.setPressed(client.options.keyRight, false);
+            } else {
+                InputController.setPressed(client.options.keyRight, true);
+                InputController.setPressed(client.options.keyLeft, false);
+            }
         }
 
         double speed = client.player.getDeltaMovement().horizontalDistanceSqr();
@@ -106,13 +123,18 @@ public class FarmingMacro {
     private void handleLaneShift(Minecraft client) {
         InputController.releaseAll(client);
 
-        if (mode.equals("melon")) {
-            // Melon just instantly swaps direction when hitting the wall
+        if (mode.equals("mushroom")) {
+            // Instantly swap from Forward to Back (or Back to Forward)
+            isMovingForward = !isMovingForward;
+            laneShiftTicks = 0;
+            state = MacroState.FARMING;
+        } else if (mode.equals("melon")) {
+            // Instantly swap from Left to Right
             isMovingLeft = !isMovingLeft;
             laneShiftTicks = 0;
             state = MacroState.FARMING;
         } else {
-            // Cane steps forward into the next lane first
+            // Cane logic: Step forward into next lane, then swap Left to Right
             if (laneShiftTicks < 6) {
                 InputController.setPressed(client.options.keyUp, true);
                 laneShiftTicks++;
