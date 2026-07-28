@@ -20,16 +20,18 @@ public class FarmingMacro {
     private int laneShiftTicks = 0;
     private int restartTicks = 0;
 
-    public static FarmingMacro getInstance() {
-        return INSTANCE;
-    }
+    public static FarmingMacro getInstance() { return INSTANCE; }
+
+    // --- NEW SETTERS FOR COMMANDS ---
+    public void setYaw(float yaw) { this.defaultYaw = yaw; }
+    public void setPitch(float pitch) { this.defaultPitch = pitch; }
 
     public void toggle(Minecraft client) {
         if (state == MacroState.IDLE) {
             state = MacroState.ALIGNING;
             rotationHandler.startRotation(defaultYaw, defaultPitch);
             if (client.player != null) {
-                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started!"));
+                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Target: " + defaultYaw + " / " + defaultPitch));
             }
         } else {
             stop(client);
