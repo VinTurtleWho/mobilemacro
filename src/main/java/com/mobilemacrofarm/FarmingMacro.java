@@ -29,7 +29,7 @@ public class FarmingMacro {
             state = MacroState.ALIGNING;
             rotationHandler.startRotation(defaultYaw, defaultPitch);
             if (client.player != null) {
-                client.player.displayClientMessage(Component.literal("§a[MobileMacro] Started!"), false);
+                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started!"));
             }
         } else {
             stop(client);
@@ -43,7 +43,7 @@ public class FarmingMacro {
         laneShiftTicks = 0;
         restartTicks = 0;
         if (client.player != null) {
-            client.player.displayClientMessage(Component.literal("§c[MobileMacro] Stopped!"), false);
+            client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Stopped!"));
         }
     }
 
