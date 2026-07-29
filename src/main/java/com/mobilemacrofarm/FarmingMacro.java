@@ -71,6 +71,9 @@ public class FarmingMacro {
     public void stop(Minecraft client) {
         state = MacroState.IDLE;
         InputController.releaseAll(client);
+        // Ensure hotbar keys are released
+        InputController.setPressed(client.options.keyHotbarSlots[toolSlot], false);
+        InputController.setPressed(client.options.keyHotbarSlots[vacuumSlot], false);
         stuckTicks = 0;
         restartTicks = 0;
         preRestartWait = 0;
@@ -128,11 +131,14 @@ public class FarmingMacro {
                 break;
             case ALIGNING:
                 if (rotationHandler.updateRotation(client)) {
-                    client.player.getInventory().selected = toolSlot; // Equip Tool
+                    // Mechanically press the hotbar key to equip tool (Bypasses private access)
+                    InputController.setPressed(client.options.keyHotbarSlots[toolSlot], true);
                     state = MacroState.FARMING;
                 }
                 break;
             case FARMING:
+                // Release the hotbar key instantly so it's not held down forever
+                InputController.setPressed(client.options.keyHotbarSlots[toolSlot], false);
                 handleFarming(client);
                 break;
             case SHIFTING_LANE:
@@ -237,7 +243,7 @@ public class FarmingMacro {
 
     private void handleLaneShift(Minecraft client) {
         InputController.releaseAll(client);
-        if (mode.equals("mushroom") || mode.equals("cane")) { isMovingForward = !isMovingForward; } 
+        if (mode.equals("mushroom") || mode.equals("cane")) { isMovingForward = !is movingForward; } 
         else if (mode.equals("melon")) { isMovingLeft = !isMovingLeft; }
         state = MacroState.FARMING;
     }
