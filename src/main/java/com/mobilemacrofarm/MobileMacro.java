@@ -44,7 +44,10 @@ public class MobileMacro implements ModInitializer {
                     String[] parts = message.split(" ");
                     if (parts.length >= 2) {
                         String type = parts[1].toLowerCase();
-                        if (type.equals("record")) { FarmingMacro.getInstance().startRecording(client); } 
+                        if (type.equals("record")) { 
+                            FarmingMacro.getInstance().startRecording(client); 
+                            client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Recording started... Walk your path!"));
+                        } 
                         else if (type.equals("stoprecord")) { FarmingMacro.getInstance().stop(client); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Recording saved!")); } 
                         else if (type.equals("pestonly")) { FarmingMacro.getInstance().setPestOnly(true); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Mode set to PEST ONLY")); } 
                         else if (type.equals("farmonly")) { FarmingMacro.getInstance().setPestOnly(false); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Mode set to NORMAL FARMING")); } 

@@ -8,16 +8,23 @@ public class RotationHandler {
     private boolean rotating = false;
 
     public void startRotation(float yaw, float pitch) {
-        // Picks a random static offset on the body instead of vibrating
-        this.targetYaw = yaw + (float) ((Math.random() - 0.5) * 1.5);
-        this.targetPitch = pitch + (float) ((Math.random() - 0.5) * 1.5);
-        this.rotating = true;
-    }
-
-    public void updateTarget(float yaw, float pitch) {
         this.targetYaw = yaw;
         this.targetPitch = pitch;
         this.rotating = true;
+    }
+
+    // NEW: Exponential Smoothing to defeat Machine Learning heuristics
+    public void updateTarget(float yaw, float pitch) {
+        this.targetYaw = currentYawSmooth(this.targetYaw, yaw, 0.4f);
+        this.targetPitch = currentYawSmooth(this.targetPitch, pitch, 0.4f);
+        this.rotating = true;
+    }
+
+    private float currentYawSmooth(float current, float target, float factor) {
+        float diff = target - current;
+        while (diff < -180.0f) diff += 360.0f;
+        while (diff > 180.0f) diff -= 360.0f;
+        return current + diff * factor;
     }
 
     public boolean updateRotation(Minecraft client) {
@@ -46,10 +53,10 @@ public class RotationHandler {
         int mouseDeltaY = (int) (pitchDiff / stepMult);
 
         double angularDistance = Math.hypot(yawDiff, pitchDiff);
-        int baseSpeed = (int) Math.min(130, Math.max(12, angularDistance * 4.5));
+        int baseSpeed = (int) Math.min(100, Math.max(8, angularDistance * 3.5));
         
-        int maxSpeedX = baseSpeed + (int)(Math.random() * 25);
-        int maxSpeedY = (int)(baseSpeed * 0.7) + (int)(Math.random() * 15);
+        int maxSpeedX = baseSpeed + (int)(Math.random() * 15);
+        int maxSpeedY = (int)(baseSpeed * 0.7) + (int)(Math.random() * 10);
 
         mouseDeltaX = Math.max(-maxSpeedX, Math.min(maxSpeedX, mouseDeltaX));
         mouseDeltaY = Math.max(-maxSpeedY, Math.min(maxSpeedY, mouseDeltaY));
