@@ -14,12 +14,19 @@ public class FarmingMacro {
 
     private float defaultYaw = 45.0f;
     private float defaultPitch = 0.0f;
-    private String mode = "cane"; // Default mode
+    private String mode = "cane"; 
 
     private boolean isMovingLeft = true;
-    private boolean isMovingForward = true; // Added for mushroom mode
+    private boolean isMovingForward = true; 
     private int stuckTicks = 0;
     private int laneShiftTicks = 0;
+    
+    // Restart Variables
+    private Integer endX = null;
+    private Integer endY = null;
+    private Integer endZ = null;
+    private int preRestartWait = 0;
+    private int targetPreRestartWait = 20;
     private int restartTicks = 0;
 
     public static FarmingMacro getInstance() { return INSTANCE; }
@@ -27,13 +34,18 @@ public class FarmingMacro {
     public void setYaw(float yaw) { this.defaultYaw = yaw; }
     public void setPitch(float pitch) { this.defaultPitch = pitch; }
     public void setMode(String newMode) { this.mode = newMode; }
+    public void setEndBlock(Integer x, Integer y, Integer z) {
+        this.endX = x;
+        this.endY = y;
+        this.endZ = z;
+    }
 
     public void toggle(Minecraft client) {
         if (state == MacroState.IDLE) {
             state = MacroState.ALIGNING;
             rotationHandler.startRotation(defaultYaw, defaultPitch);
             if (client.player != null) {
-                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Mode: " + mode + " | Target: " + defaultYaw + " / " + defaultPitch));
+                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Mode: " + mode));
             }
         } else {
             stop(client);
@@ -46,6 +58,7 @@ public class FarmingMacro {
         stuckTicks = 0;
         laneShiftTicks = 0;
         restartTicks = 0;
+        preRestartWait = 0;
         if (client.player != null) {
             client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Stopped!"));
         }
@@ -54,6 +67,12 @@ public class FarmingMacro {
     public void onTick(Minecraft client) {
         if (client.player == null || client.level == null || state == MacroState.IDLE) {
             return;
+        }
+
+        // GUI SAFETY CHECK: If a menu is open, release keys and pause logic
+        if (client.screen != null) {
+            InputController.releaseAll(client);
+            return; 
         }
 
         switch (state) {
@@ -75,13 +94,26 @@ public class FarmingMacro {
     }
 
     private void handleFarming(Minecraft client) {
+        // END BLOCK CHECK
+        if (endX != null && endY != null && endZ != null) {
+            if (client.player.getBlockX() == endX && 
+                client.player.getBlockY() == endY && 
+                client.player.getBlockZ() == endZ) {
+                
+                state = MacroState.RESTARTING;
+                preRestartWait = 0;
+                restartTicks = 0;
+                // Randomize reaction time between 15 and 40 ticks (0.75s to 2.0s)
+                targetPreRestartWait = 15 + (int)(Math.random() * 25); 
+                return;
+            }
+        }
+
         InputController.setPressed(client.options.keyAttack, true);
 
         if (mode.equals("mushroom")) {
-            // Mushroom mode strictly uses Forward (W) and Back (S)
             InputController.setPressed(client.options.keyLeft, false);
             InputController.setPressed(client.options.keyRight, false);
-            
             if (isMovingForward) {
                 InputController.setPressed(client.options.keyUp, true);
                 InputController.setPressed(client.options.keyDown, false);
@@ -90,9 +122,7 @@ public class FarmingMacro {
                 InputController.setPressed(client.options.keyDown, true);
             }
         } else {
-            // Cane and Melon modes
-            InputController.setPressed(client.options.keyDown, false); // S is never used here
-
+            InputController.setPressed(client.options.keyDown, false);
             if (mode.equals("melon")) {
                 InputController.setPressed(client.options.keyUp, true);
             } else {
@@ -124,17 +154,14 @@ public class FarmingMacro {
         InputController.releaseAll(client);
 
         if (mode.equals("mushroom")) {
-            // Instantly swap from Forward to Back (or Back to Forward)
             isMovingForward = !isMovingForward;
             laneShiftTicks = 0;
             state = MacroState.FARMING;
         } else if (mode.equals("melon")) {
-            // Instantly swap from Left to Right
             isMovingLeft = !isMovingLeft;
             laneShiftTicks = 0;
             state = MacroState.FARMING;
         } else {
-            // Cane logic: Step forward into next lane, then swap Left to Right
             if (laneShiftTicks < 6) {
                 InputController.setPressed(client.options.keyUp, true);
                 laneShiftTicks++;
@@ -149,17 +176,24 @@ public class FarmingMacro {
 
     private void handleRestart(Minecraft client) {
         InputController.releaseAll(client);
-
-        if (restartTicks == 0) {
+        
+        preRestartWait++;
+        
+        // Wait for human-like reaction time before sending command
+        if (preRestartWait == targetPreRestartWait) {
             if (client.player.connection != null) {
                 client.player.connection.sendCommand("warp garden");
+                client.player.sendSystemMessage(Component.literal("§e[MobileMacro] Restarting farm..."));
             }
-        }
-        restartTicks++;
-        if (restartTicks > 100) {
-            restartTicks = 0;
-            state = MacroState.ALIGNING;
-            rotationHandler.startRotation(defaultYaw, defaultPitch);
+        } else if (preRestartWait > targetPreRestartWait) {
+            restartTicks++;
+            // Wait 100 ticks (5 seconds) for the warp to load before realigning
+            if (restartTicks > 100) {
+                restartTicks = 0;
+                preRestartWait = 0;
+                state = MacroState.ALIGNING;
+                rotationHandler.startRotation(defaultYaw, defaultPitch);
+            }
         }
     }
 
