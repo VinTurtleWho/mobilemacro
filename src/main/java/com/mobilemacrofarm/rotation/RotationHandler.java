@@ -25,26 +25,35 @@ public class RotationHandler {
         while (yawDiff < -180.0f) yawDiff += 360.0f;
         while (yawDiff > 180.0f) yawDiff -= 360.0f;
 
-        if (Math.abs(yawDiff) < 0.5f && Math.abs(pitchDiff) < 0.5f) {
-            client.player.setYRot(targetYaw);
-            client.player.setXRot(targetPitch);
+        // Vanilla Minecraft Mouse Sensitivity Math
+        double sensitivity = client.options.sensitivity().get();
+        float f = (float) (sensitivity * 0.6 + 0.2);
+        float gcd = f * f * f * 8.0f;
+        float stepMult = gcd * 0.15f; // The exact float delta per 1 pixel of mouse movement
+
+        // CRITICAL FIX: If we are within 1 mouse pixel of the target, STOP. 
+        // Do NOT snap to the perfect target. Leave it on the messy decimal.
+        if (Math.abs(yawDiff) <= stepMult && Math.abs(pitchDiff) <= stepMult) {
             rotating = false;
             return true;
         }
 
-        // GCD Calculation to bypass AimModulo360 checks in Grim AC
-        double sensitivity = client.options.sensitivity().get();
-        float f = (float) (sensitivity * 0.6 + 0.2);
-        float gcd = f * f * f * 1.2f;
+        // Simulate physical integer mouse movements (how many pixels to move)
+        int mouseDeltaX = (int) (yawDiff / stepMult);
+        int mouseDeltaY = (int) (pitchDiff / stepMult);
 
-        float stepYaw = Math.max(0.5f, Math.min(Math.abs(yawDiff), 4.0f)) * Math.signum(yawDiff);
-        float stepPitch = Math.max(0.5f, Math.min(Math.abs(pitchDiff), 2.0f)) * Math.signum(pitchDiff);
+        // Limit speed to look human (max 20 pixels per tick)
+        int maxSpeed = 20;
+        mouseDeltaX = Math.max(-maxSpeed, Math.min(maxSpeed, mouseDeltaX));
+        mouseDeltaY = Math.max(-maxSpeed, Math.min(maxSpeed, mouseDeltaY));
 
-        stepYaw = Math.round(stepYaw / gcd) * gcd;
-        stepPitch = Math.round(stepPitch / gcd) * gcd;
+        // Force at least 1 pixel of movement if we haven't reached the threshold
+        if (mouseDeltaX == 0 && Math.abs(yawDiff) > stepMult) mouseDeltaX = (int) Math.signum(yawDiff);
+        if (mouseDeltaY == 0 && Math.abs(pitchDiff) > stepMult) mouseDeltaY = (int) Math.signum(pitchDiff);
 
-        client.player.setYRot(currentYaw + stepYaw);
-        client.player.setXRot(Math.max(-90.0f, Math.min(90.0f, currentPitch + stepPitch)));
+        // Apply exactly like vanilla MouseHandler
+        client.player.setYRot(currentYaw + ((float) mouseDeltaX * stepMult));
+        client.player.setXRot(Math.max(-90.0f, Math.min(90.0f, currentPitch + ((float) mouseDeltaY * stepMult))));
 
         return false;
     }
