@@ -1,5 +1,4 @@
 package com.mobilemacrofarm;
-
 import com.mobilemacrofarm.input.InputController;
 import com.mobilemacrofarm.rotation.RotationHandler;
 import com.mobilemacrofarm.state.MacroState;
@@ -42,9 +41,6 @@ public class FarmingMacro {
 
     private final String[] PEST_NAMES = {"Beetle", "Fly", "Cricket", "Locust", "Rat", "Mosquito", "Earthworm", "Mite", "Moth", "Slug", "Firefly", "Dragonfly", "Mantis", "Mouse"};
     private net.minecraft.world.entity.Entity currentTarget = null;
-    private float aimOffsetX = 0f;
-    private float aimOffsetY = 0f;
-    private int aimTicks = 0;
 
     public static FarmingMacro getInstance() { return INSTANCE; }
     public void setYaw(float yaw) { this.defaultYaw = yaw; }
@@ -152,10 +148,9 @@ public class FarmingMacro {
     }
 
     private void aimAt(Minecraft client, net.minecraft.world.entity.Entity target) {
-        aimTicks++; if (aimTicks > 10) { aimOffsetX = (float)((Math.random() - 0.5) * 0.6); aimOffsetY = (float)((Math.random() - 0.5) * 0.8); aimTicks = 0; }
-        double dx = target.getX() - client.player.getX() + aimOffsetX;
-        double dy = (target.getY() + target.getEyeHeight() / 2.0) - client.player.getEyeY() + aimOffsetY;
-        double dz = target.getZ() - client.player.getZ() + aimOffsetX;
+        double dx = target.getX() - client.player.getX();
+        double dy = (target.getY() + target.getEyeHeight() / 2.0) - client.player.getEyeY();
+        double dz = target.getZ() - client.player.getZ();
         double dist = Math.sqrt(dx * dx + dz * dz);
         if (dist < 0.05) dist = 0.05; 
         float targetYaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0f);
@@ -211,6 +206,7 @@ public class FarmingMacro {
                 rotationHandler.updateRotation(client); 
                 if (currentTarget == null || !currentTarget.isAlive() || currentTarget.isRemoved() || currentTarget.distanceToSqr(client.player) > 600.0) {
                     InputController.setPressed(client.options.keyUse, false); 
+                    InputController.setPressed(client.options.keyAttack, false); // PacketOrder safety
                     currentTarget = scanForTarget(client);
                     if (currentTarget == null) {
                         if (!pestOnlyMode) {
