@@ -29,6 +29,7 @@ public class FarmingMacro {
     private int stuckTicks = 0;
     private int jumpToggleTicks = 0;
     private int guiDelayTicks = 0;
+    private int guiTimeoutTicks = 0; // NEW: Timeout Tracker
     private final List<TickRecord> recordedPath = new ArrayList<>();
     private int replayIndex = 0;
     private Integer endX = null;
@@ -66,7 +67,7 @@ public class FarmingMacro {
     public void stop(Minecraft client) {
         state = MacroState.IDLE;
         InputController.releaseAll(client);
-        stuckTicks = 0; restartTicks = 0; preRestartWait = 0; jumpToggleTicks = 0; guiDelayTicks = 0;
+        stuckTicks = 0; restartTicks = 0; preRestartWait = 0; jumpToggleTicks = 0; guiDelayTicks = 0; guiTimeoutTicks = 0;
         if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Stopped!"));
     }
 
@@ -78,6 +79,7 @@ public class FarmingMacro {
             client.player.connection.sendCommand("desk");
         }
         state = MacroState.WAITING_FOR_DESK;
+        guiTimeoutTicks = 0;
         if (client.player != null) client.player.sendSystemMessage(Component.literal("§e[MobileMacro] Pest detected! Scraping /desk..."));
     }
 
@@ -182,58 +184,71 @@ public class FarmingMacro {
                 handleReplaying(client);
                 break;
             case WAITING_FOR_DESK:
+                guiTimeoutTicks++;
                 if (client.screen instanceof AbstractContainerScreen) {
                     guiDelayTicks = 10 + (int)(Math.random() * 15); 
                     state = MacroState.DESK_DELAY;
+                } else if (guiTimeoutTicks > 60) { // 3 Second Timeout
+                    if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Desk GUI timeout! Resuming farm..."));
+                    state = MacroState.ALIGNING;
+                    rotationHandler.startRotation(defaultYaw, defaultPitch);
                 }
                 break;
             case DESK_DELAY:
                 guiDelayTicks--;
-                if (guiDelayTicks <= 0 && client.screen instanceof AbstractContainerScreen) {
-                    AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.screen;
-                    boolean found = false;
-                    for (Slot slot : screen.getMenu().slots) {
-                        if (slot.getItem().getHoverName().getString().contains("Configure Plot")) {
-                            safeClick(client, screen, slot);
-                            found = true; break;
+                if (guiDelayTicks <= 0) {
+                    if (client.screen instanceof AbstractContainerScreen) {
+                        AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.screen;
+                        boolean found = false;
+                        for (Slot slot : screen.getMenu().slots) {
+                            if (slot.getItem().getHoverName().getString().contains("Configure Plot")) {
+                                safeClick(client, screen, slot);
+                                found = true; break;
+                            }
                         }
-                    }
-                    if (found) {
-                        guiDelayTicks = 15 + (int)(Math.random() * 15); 
-                        state = MacroState.WAITING_FOR_PLOT;
+                        if (found) {
+                            guiDelayTicks = 15 + (int)(Math.random() * 15); 
+                            state = MacroState.WAITING_FOR_PLOT;
+                        } else {
+                            client.player.closeContainer();
+                            if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] 'Configure Plot' not found in GUI! Resuming..."));
+                            state = MacroState.ALIGNING;
+                            rotationHandler.startRotation(defaultYaw, defaultPitch);
+                        }
                     }
                 }
                 break;
             case WAITING_FOR_PLOT:
                 guiDelayTicks--;
-                if (guiDelayTicks <= 0 && client.screen instanceof AbstractContainerScreen) {
-                    AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.screen;
-                    int targetPlot = -1;
-                    for (Slot slot : screen.getMenu().slots) {
-                        ItemStack stack = slot.getItem();
-                        String name = stack.getHoverName().getString();
-                        if (name.contains("Plot")) {
-                            boolean hasPest = false;
-                            List<Component> lore = getSafeTooltip(stack, client);
-                            for (Component comp : lore) {
-                                if (comp.getString().contains("Pests:")) { hasPest = true; break; }
-                            }
-                            if (hasPest) {
-                                String cleaned = name.replaceAll("[^0-9]", ""); 
-                                if (!cleaned.isEmpty()) { targetPlot = Integer.parseInt(cleaned); break; }
+                if (guiDelayTicks <= 0) {
+                    if (client.screen instanceof AbstractContainerScreen) {
+                        AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.screen;
+                        int targetPlot = -1;
+                        for (Slot slot : screen.getMenu().slots) {
+                            ItemStack stack = slot.getItem();
+                            String name = stack.getHoverName().getString();
+                            if (name.contains("Plot")) {
+                                boolean hasPest = false;
+                                List<Component> lore = getSafeTooltip(stack, client);
+                                for (Component comp : lore) {
+                                    if (comp.getString().contains("Pests:")) { hasPest = true; break; }
+                                }
+                                if (hasPest) {
+                                    String cleaned = name.replaceAll("[^0-9]", ""); 
+                                    if (!cleaned.isEmpty()) { targetPlot = Integer.parseInt(cleaned); break; }
+                                }
                             }
                         }
-                    }
-                    client.player.closeContainer(); 
-                    if (targetPlot != -1) {
-                        if (client.player.connection != null) client.player.connection.sendCommand("tptoplot " + targetPlot);
-                        if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Target Plot: " + targetPlot + " found! Teleporting..."));
-                        state = MacroState.PEST_FLY_UP; 
-                    } else {
-                        if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] No pests found in GUI! Resuming..."));
-                        if (client.player.connection != null) client.player.connection.sendCommand("warp garden");
-                        state = MacroState.ALIGNING;
-                        rotationHandler.startRotation(defaultYaw, defaultPitch);
+                        client.player.closeContainer(); 
+                        if (targetPlot != -1) {
+                            if (client.player.connection != null) client.player.connection.sendCommand("tptoplot " + targetPlot);
+                            if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Target Plot: " + targetPlot + " found! Teleporting..."));
+                            state = MacroState.PEST_FLY_UP; 
+                        } else {
+                            if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] No pests found in lore! Resuming..."));
+                            state = MacroState.ALIGNING;
+                            rotationHandler.startRotation(defaultYaw, defaultPitch);
+                        }
                     }
                 }
                 break;
