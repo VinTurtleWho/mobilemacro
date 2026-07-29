@@ -19,21 +19,18 @@ public class FarmingMacro {
     private String mode = "cane"; 
     private boolean pestOnlyMode = false;
 
-    // Hotbar Slots (0-8)
     private int toolSlot = 0;
     private int vacuumSlot = 1;
 
-    // Farming Variables
     private boolean isMovingLeft = true;
     private boolean isMovingForward = true; 
     private int stuckTicks = 0;
     private int jumpToggleTicks = 0;
+    private int swapDelayTicks = 0; // Added for hotbar swapping
     
-    // Recorder Variables
     private final List<TickRecord> recordedPath = new ArrayList<>();
     private int replayIndex = 0;
 
-    // Restart Variables
     private Integer endX = null;
     private Integer endY = null;
     private Integer endZ = null;
@@ -71,17 +68,16 @@ public class FarmingMacro {
     public void stop(Minecraft client) {
         state = MacroState.IDLE;
         InputController.releaseAll(client);
-        // Ensure hotbar keys are released
         InputController.setPressed(client.options.keyHotbarSlots[toolSlot], false);
         InputController.setPressed(client.options.keyHotbarSlots[vacuumSlot], false);
         stuckTicks = 0;
         restartTicks = 0;
         preRestartWait = 0;
         jumpToggleTicks = 0;
+        swapDelayTicks = 0;
         if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Stopped!"));
     }
 
-    // --- RECORDER LOGIC ---
     public void startRecording(Minecraft client) {
         recordedPath.clear();
         state = MacroState.RECORDING;
@@ -93,6 +89,7 @@ public class FarmingMacro {
             if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] No path recorded!"));
             return;
         }
+        InputController.releaseAll(client); // FORCE drop all keys before replaying (fixes left click bug)
         replayIndex = 0;
         state = MacroState.REPLAYING;
         if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Replaying path..."));
@@ -100,7 +97,6 @@ public class FarmingMacro {
 
     public void onTick(Minecraft client) {
         if (client.player == null || client.level == null) return;
-
         if (state == MacroState.IDLE) return;
 
         // GUI SAFETY CHECK
@@ -109,14 +105,17 @@ public class FarmingMacro {
             return; 
         }
 
-        // MECHANICAL FLIGHT ENFORCER (Double tap spacebar if not flying)
+        // MECHANICAL FLIGHT ENFORCER FIX
         if (state == MacroState.FARMING || state == MacroState.PEST_HUNTING || pestOnlyMode) {
             if (!client.player.getAbilities().flying && !client.player.onGround()) {
                 jumpToggleTicks++;
                 if (jumpToggleTicks == 1) InputController.setPressed(client.options.keyJump, true);
                 else if (jumpToggleTicks == 2) InputController.setPressed(client.options.keyJump, false);
                 else if (jumpToggleTicks == 3) InputController.setPressed(client.options.keyJump, true);
-                else if (jumpToggleTicks == 4) InputController.setPressed(client.options.keyJump, false);
+                else if (jumpToggleTicks >= 4) {
+                    InputController.setPressed(client.options.keyJump, false); // EXPLICITLY let go of spacebar
+                    if (jumpToggleTicks > 20) jumpToggleTicks = 0; // Wait 1 full second before trying again
+                }
             } else {
                 jumpToggleTicks = 0;
             }
@@ -131,14 +130,21 @@ public class FarmingMacro {
                 break;
             case ALIGNING:
                 if (rotationHandler.updateRotation(client)) {
-                    // Mechanically press the hotbar key to equip tool (Bypasses private access)
+                    state = MacroState.SWAPPING_TOOL;
+                    swapDelayTicks = 0;
+                }
+                break;
+            case SWAPPING_TOOL:
+                swapDelayTicks++;
+                if (swapDelayTicks == 1) {
                     InputController.setPressed(client.options.keyHotbarSlots[toolSlot], true);
+                } else if (swapDelayTicks > 3) {
+                    // Held it for 3 ticks, now it's safe to release and farm
+                    InputController.setPressed(client.options.keyHotbarSlots[toolSlot], false);
                     state = MacroState.FARMING;
                 }
                 break;
             case FARMING:
-                // Release the hotbar key instantly so it's not held down forever
-                InputController.setPressed(client.options.keyHotbarSlots[toolSlot], false);
                 handleFarming(client);
                 break;
             case SHIFTING_LANE:
@@ -148,7 +154,6 @@ public class FarmingMacro {
                 handleRestart(client);
                 break;
             case PEST_ONLY_MODE:
-                // Stub for Part 2
                 break;
         }
     }
@@ -179,6 +184,11 @@ public class FarmingMacro {
         InputController.setPressed(client.options.keyDown, frame.s);
         InputController.setPressed(client.options.keyRight, frame.d);
         InputController.setPressed(client.options.keyJump, frame.space);
+        
+        // FIX: Now replays shift (sneak) and forces left/right click off!
+        InputController.setPressed(client.options.keyShift, frame.sneak); 
+        InputController.setPressed(client.options.keyAttack, false); 
+        InputController.setPressed(client.options.keyUse, false);
         
         client.player.setYRot(frame.yaw);
         client.player.setXRot(frame.pitch);
