@@ -60,6 +60,7 @@ public class FarmingMacro {
                 if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started PEST ONLY Mode! Target: " + targetMode));
             } else {
                 state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch);
+                if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Mode: " + mode));
             }
         } else { stop(client); }
     }
@@ -151,9 +152,10 @@ public class FarmingMacro {
         double dy = (target.getY() + target.getEyeHeight() / 2.0) - client.player.getEyeY();
         double dz = target.getZ() - client.player.getZ();
         double dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < 0.05) dist = 0.05; // PREVENT NaN CRASH
         float targetYaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0f);
         float targetPitch = (float) -(Math.toDegrees(Math.atan2(dy, dist)));
-        rotationHandler.startRotation(targetYaw, targetPitch);
+        rotationHandler.updateTarget(targetYaw, targetPitch);
     }
 
     public void onTick(Minecraft client) {
@@ -177,7 +179,8 @@ public class FarmingMacro {
             case WAITING_FOR_DESK:
                 guiTimeoutTicks++;
                 if (client.screen instanceof AbstractContainerScreen) { guiDelayTicks = 10 + (int)(Math.random() * 15); state = MacroState.DESK_DELAY; } 
-                else if (guiTimeoutTicks > 60) { state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch); }
+                else if (guiTimeoutTicks > 60) { state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch);
+                if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Mode: " + mode)); }
                 break;
             case DESK_DELAY:
                 guiDelayTicks--;
@@ -187,7 +190,8 @@ public class FarmingMacro {
                         if (slot.getItem().getHoverName().getString().contains("Configure Plot")) { safeClick(client, screen, slot); found = true; break; }
                     }
                     if (found) { guiDelayTicks = 15 + (int)(Math.random() * 15); state = MacroState.WAITING_FOR_PLOT; } 
-                    else { client.player.closeContainer(); state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch); }
+                    else { client.player.closeContainer(); state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch);
+                if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Mode: " + mode)); }
                 }
                 break;
             case WAITING_FOR_PLOT:
@@ -206,7 +210,8 @@ public class FarmingMacro {
                     if (targetPlot != -1) {
                         if (client.player.connection != null) client.player.connection.sendCommand("tptoplot " + targetPlot);
                         equipSlot(client, vacuumSlot); guiDelayTicks = 20; state = MacroState.PEST_FLY_UP; 
-                    } else { state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch); }
+                    } else { state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch);
+                if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Mode: " + mode)); }
                 }
                 break;
             case PEST_FLY_UP:
@@ -222,6 +227,7 @@ public class FarmingMacro {
                     if (currentTarget == null && !pestOnlyMode) {
                         if (client.player.connection != null) client.player.connection.sendCommand("warp garden");
                         state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch);
+                if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Mode: " + mode));
                     }
                     return;
                 }
@@ -246,7 +252,8 @@ public class FarmingMacro {
     private void handleReplaying(Minecraft client) {
         if (replayIndex >= recordedPath.size()) {
             InputController.releaseAll(client); if (client.player.connection != null) client.player.connection.sendCommand("setspawnlocation");
-            state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch); return;
+            state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch);
+                if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Mode: " + mode)); return;
         }
         TickRecord frame = recordedPath.get(replayIndex);
         InputController.setPressed(client.options.keyUp, frame.w); InputController.setPressed(client.options.keyLeft, frame.a);
@@ -292,7 +299,8 @@ public class FarmingMacro {
             if (client.player.connection != null) client.player.connection.sendCommand("warp garden");
         } else if (preRestartWait > targetPreRestartWait) {
             restartTicks++;
-            if (restartTicks > 100) { restartTicks = 0; preRestartWait = 0; state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch); }
+            if (restartTicks > 100) { restartTicks = 0; preRestartWait = 0; state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch);
+                if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Started! Mode: " + mode)); }
         }
     }
     public MacroState getState() { return state; }

@@ -7,7 +7,21 @@ public class RotationHandler {
     private float targetPitch = 0.0f;
     private boolean rotating = false;
 
+    private float noiseX = 0.0f;
+    private float noiseY = 0.0f;
+    private int ticksInRotation = 0;
+
     public void startRotation(float yaw, float pitch) {
+        this.targetYaw = yaw;
+        this.targetPitch = pitch;
+        this.rotating = true;
+        this.ticksInRotation = 0;
+        this.noiseX = (float) ((Math.random() - 0.5) * 1.2);
+        this.noiseY = (float) ((Math.random() - 0.5) * 0.8);
+    }
+
+    // NEW: Seamlessly updates the target without resetting the human tremor math!
+    public void updateTarget(float yaw, float pitch) {
         this.targetYaw = yaw;
         this.targetPitch = pitch;
         this.rotating = true;
@@ -16,22 +30,28 @@ public class RotationHandler {
     public boolean updateRotation(Minecraft client) {
         if (!rotating || client.player == null) return true;
 
+        ticksInRotation++;
+
+        float currentNoiseX = noiseX + (float) Math.sin(ticksInRotation * 0.3) * 0.2f;
+        float currentNoiseY = noiseY + (float) Math.cos(ticksInRotation * 0.2) * 0.15f;
+
+        float effectiveTargetYaw = targetYaw + currentNoiseX;
+        float effectiveTargetPitch = targetPitch + currentNoiseY;
+
         float currentYaw = client.player.getYRot();
         float currentPitch = client.player.getXRot();
 
-        float yawDiff = targetYaw - currentYaw;
-        float pitchDiff = targetPitch - currentPitch;
+        float yawDiff = effectiveTargetYaw - currentYaw;
+        float pitchDiff = effectiveTargetPitch - currentPitch;
 
         while (yawDiff < -180.0f) yawDiff += 360.0f;
         while (yawDiff > 180.0f) yawDiff -= 360.0f;
 
-        // Vanilla Minecraft Mouse Sensitivity Math
         double sensitivity = client.options.sensitivity().get();
         float f = (float) (sensitivity * 0.6 + 0.2);
         float gcd = f * f * f * 8.0f;
         float stepMult = gcd * 0.15f; 
 
-        // If we are within 1 mouse pixel of the target, STOP. 
         if (Math.abs(yawDiff) <= stepMult && Math.abs(pitchDiff) <= stepMult) {
             rotating = false;
             return true;
@@ -40,10 +60,11 @@ public class RotationHandler {
         int mouseDeltaX = (int) (yawDiff / stepMult);
         int mouseDeltaY = (int) (pitchDiff / stepMult);
 
-        // DYNAMIC FLICK SPEED (Looks like a real human swiping fast, then slowing down)
-        // Max speed of ~100 to 150 pixels per tick (~22 degrees per tick). 180 turn takes ~0.4s.
-        int maxSpeedX = 100 + (int)(Math.random() * 50); 
-        int maxSpeedY = 70 + (int)(Math.random() * 30);
+        double angularDistance = Math.hypot(yawDiff, pitchDiff);
+        int baseSpeed = (int) Math.min(130, Math.max(12, angularDistance * 4.5));
+        
+        int maxSpeedX = baseSpeed + (int)(Math.random() * 25);
+        int maxSpeedY = (int)(baseSpeed * 0.7) + (int)(Math.random() * 15);
 
         mouseDeltaX = Math.max(-maxSpeedX, Math.min(maxSpeedX, mouseDeltaX));
         mouseDeltaY = Math.max(-maxSpeedY, Math.min(maxSpeedY, mouseDeltaY));
@@ -57,7 +78,5 @@ public class RotationHandler {
         return false;
     }
 
-    public boolean isRotating() {
-        return rotating;
-    }
+    public boolean isRotating() { return rotating; }
 }
