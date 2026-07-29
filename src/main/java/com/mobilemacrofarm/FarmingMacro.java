@@ -243,7 +243,7 @@ public class FarmingMacro {
 
     private void handleLaneShift(Minecraft client) {
         InputController.releaseAll(client);
-        if (mode.equals("mushroom") || mode.equals("cane")) { isMovingForward = !is movingForward; } 
+        if (mode.equals("mushroom") || mode.equals("cane")) { isMovingForward = !isMovingForward; } 
         else if (mode.equals("melon")) { isMovingLeft = !isMovingLeft; }
         state = MacroState.FARMING;
     }
