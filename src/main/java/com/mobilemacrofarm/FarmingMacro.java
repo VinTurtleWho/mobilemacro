@@ -19,7 +19,6 @@ public class FarmingMacro {
     private boolean isMovingLeft = true;
     private boolean isMovingForward = true; 
     private int stuckTicks = 0;
-    private int laneShiftTicks = 0;
     
     // Restart Variables
     private Integer endX = null;
@@ -56,7 +55,6 @@ public class FarmingMacro {
         state = MacroState.IDLE;
         InputController.releaseAll(client);
         stuckTicks = 0;
-        laneShiftTicks = 0;
         restartTicks = 0;
         preRestartWait = 0;
         if (client.player != null) {
@@ -69,7 +67,7 @@ public class FarmingMacro {
             return;
         }
 
-        // GUI SAFETY CHECK: If a menu is open, release keys and pause logic
+        // GUI SAFETY CHECK: Pause logic if a menu is open
         if (client.screen != null) {
             InputController.releaseAll(client);
             return; 
@@ -103,7 +101,6 @@ public class FarmingMacro {
                 state = MacroState.RESTARTING;
                 preRestartWait = 0;
                 restartTicks = 0;
-                // Randomize reaction time between 15 and 40 ticks (0.75s to 2.0s)
                 targetPreRestartWait = 15 + (int)(Math.random() * 25); 
                 return;
             }
@@ -121,14 +118,20 @@ public class FarmingMacro {
                 InputController.setPressed(client.options.keyUp, false);
                 InputController.setPressed(client.options.keyDown, true);
             }
-        } else {
+        } else if (mode.equals("cane")) {
+            // Cane mode alternates between Forward (W) and Right (D)
+            InputController.setPressed(client.options.keyLeft, false);
             InputController.setPressed(client.options.keyDown, false);
-            if (mode.equals("melon")) {
+            if (isMovingForward) {
                 InputController.setPressed(client.options.keyUp, true);
+                InputController.setPressed(client.options.keyRight, false);
             } else {
                 InputController.setPressed(client.options.keyUp, false);
+                InputController.setPressed(client.options.keyRight, true);
             }
-
+        } else if (mode.equals("melon")) {
+            InputController.setPressed(client.options.keyDown, false);
+            InputController.setPressed(client.options.keyUp, true);
             if (isMovingLeft) {
                 InputController.setPressed(client.options.keyLeft, true);
                 InputController.setPressed(client.options.keyRight, false);
@@ -153,25 +156,14 @@ public class FarmingMacro {
     private void handleLaneShift(Minecraft client) {
         InputController.releaseAll(client);
 
-        if (mode.equals("mushroom")) {
+        // All 3 modes now just instantly swap their key states when hitting a wall
+        if (mode.equals("mushroom") || mode.equals("cane")) {
             isMovingForward = !isMovingForward;
-            laneShiftTicks = 0;
-            state = MacroState.FARMING;
         } else if (mode.equals("melon")) {
             isMovingLeft = !isMovingLeft;
-            laneShiftTicks = 0;
-            state = MacroState.FARMING;
-        } else {
-            if (laneShiftTicks < 6) {
-                InputController.setPressed(client.options.keyUp, true);
-                laneShiftTicks++;
-            } else {
-                InputController.setPressed(client.options.keyUp, false);
-                isMovingLeft = !isMovingLeft;
-                laneShiftTicks = 0;
-                state = MacroState.FARMING;
-            }
         }
+        
+        state = MacroState.FARMING;
     }
 
     private void handleRestart(Minecraft client) {
@@ -179,7 +171,6 @@ public class FarmingMacro {
         
         preRestartWait++;
         
-        // Wait for human-like reaction time before sending command
         if (preRestartWait == targetPreRestartWait) {
             if (client.player.connection != null) {
                 client.player.connection.sendCommand("warp garden");
@@ -187,7 +178,6 @@ public class FarmingMacro {
             }
         } else if (preRestartWait > targetPreRestartWait) {
             restartTicks++;
-            // Wait 100 ticks (5 seconds) for the warp to load before realigning
             if (restartTicks > 100) {
                 restartTicks = 0;
                 preRestartWait = 0;
