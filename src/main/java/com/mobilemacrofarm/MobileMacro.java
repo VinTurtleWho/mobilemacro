@@ -48,19 +48,48 @@ public class MobileMacro implements ModInitializer {
                             FarmingMacro.getInstance().startRecording(client); 
                             client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Recording started... Walk your path!"));
                         } 
-                        else if (type.equals("stoprecord")) { FarmingMacro.getInstance().stop(client); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Recording saved!")); } 
-                        else if (type.equals("pestonly")) { FarmingMacro.getInstance().setPestOnly(true); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Mode set to PEST ONLY")); } 
-                        else if (type.equals("farmonly")) { FarmingMacro.getInstance().setPestOnly(false); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Mode set to NORMAL FARMING")); } 
-                        else if (type.equals("tool") && parts.length >= 3) { int slot = Integer.parseInt(parts[2]) - 1; FarmingMacro.getInstance().setToolSlot(slot); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Tool slot set to " + (slot+1))); } 
-                        else if (type.equals("vacuum") && parts.length >= 3) { int slot = Integer.parseInt(parts[2]) - 1; FarmingMacro.getInstance().setVacuumSlot(slot); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Vacuum slot set to " + (slot+1))); } 
+                        else if (type.equals("stoprecord")) { 
+                            FarmingMacro.getInstance().stop(client); 
+                            client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Recording saved!")); 
+                        } 
+                        else if (type.equals("pestonly")) { 
+                            FarmingMacro.getInstance().setPestOnly(true); 
+                            client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Mode set to PEST ONLY")); 
+                        } 
+                        else if (type.equals("farmonly")) { 
+                            FarmingMacro.getInstance().setPestOnly(false); 
+                            client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Mode set to NORMAL FARMING")); 
+                        } 
+                        else if (type.equals("tool")) { 
+                            if (parts.length >= 3) {
+                                int slot = Integer.parseInt(parts[2]) - 1; 
+                                FarmingMacro.getInstance().setToolSlot(slot); 
+                                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Tool slot set to " + (slot+1))); 
+                            }
+                        } 
+                        else if (type.equals("vacuum") || type.equals("vaccum")) { 
+                            if (parts.length >= 3) {
+                                int slot = Integer.parseInt(parts[2]) - 1; 
+                                FarmingMacro.getInstance().setVacuumSlot(slot); 
+                                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Vacuum slot set to " + (slot+1))); 
+                            } else {
+                                client.player.sendSystemMessage(Component.literal("§e[MobileMacro] Current Vacuum Slot: " + (FarmingMacro.getInstance().getVacuumSlot() + 1)));
+                            }
+                        } 
                         else if (type.equals("target") && parts.length >= 3) {
                             String targetType = parts[2].toLowerCase();
                             FarmingMacro.getInstance().setTargetMode(targetType);
                             client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Target Mode set to: " + targetType));
                         }
                         else if (type.equals("end")) {
-                            if (parts.length == 2) { FarmingMacro.getInstance().setEndBlock(client.player.getBlockX(), client.player.getBlockY(), client.player.getBlockZ()); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] End Block set!")); } 
-                            else if (parts.length == 3 && parts[2].equalsIgnoreCase("clear")) { FarmingMacro.getInstance().setEndBlock(null, null, null); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] End Block cleared!")); }
+                            if (parts.length == 2) { 
+                                FarmingMacro.getInstance().setEndBlock(client.player.getBlockX(), client.player.getBlockY(), client.player.getBlockZ()); 
+                                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] End Block set!")); 
+                            } 
+                            else if (parts.length == 3 && parts[2].equalsIgnoreCase("clear")) { 
+                                FarmingMacro.getInstance().setEndBlock(null, null, null); 
+                                client.player.sendSystemMessage(Component.literal("§a[MobileMacro] End Block cleared!")); 
+                            }
                         } else if (parts.length >= 3) {
                             String valStr = parts[2].toLowerCase();
                             if (type.equals("mode")) { FarmingMacro.getInstance().setMode(valStr); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Farming Mode set to " + valStr)); } 
@@ -68,7 +97,7 @@ public class MobileMacro implements ModInitializer {
                             else if (type.equals("pitch")) { FarmingMacro.getInstance().setPitch(Float.parseFloat(valStr)); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Target Pitch set to " + valStr)); }
                         }
                     }
-                } catch (Exception e) { client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Invalid format!")); }
+                } catch (Exception e) { client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Invalid command format!")); }
                 return false; 
             }
             return true; 

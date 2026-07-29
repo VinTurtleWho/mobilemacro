@@ -1,4 +1,5 @@
 package com.mobilemacrofarm;
+
 import com.mobilemacrofarm.input.InputController;
 import com.mobilemacrofarm.rotation.RotationHandler;
 import com.mobilemacrofarm.state.MacroState;
@@ -28,7 +29,6 @@ public class FarmingMacro {
     private boolean isMovingLeft = true;
     private boolean isMovingForward = true; 
     private int stuckTicks = 0;
-    private int jumpToggleTicks = 0;
     private int guiDelayTicks = 0;
     private int guiTimeoutTicks = 0; 
     private final List<TickRecord> recordedPath = new ArrayList<>();
@@ -51,6 +51,7 @@ public class FarmingMacro {
     public void setTargetMode(String mode) { this.targetMode = mode; }
     public void setToolSlot(int slot) { this.toolSlot = slot; }
     public void setVacuumSlot(int slot) { this.vacuumSlot = slot; }
+    public int getVacuumSlot() { return this.vacuumSlot; }
     public void setEndBlock(Integer x, Integer y, Integer z) { this.endX = x; this.endY = y; this.endZ = z; }
 
     public void toggle(Minecraft client) {
@@ -67,9 +68,10 @@ public class FarmingMacro {
 
     public void stop(Minecraft client) {
         state = MacroState.IDLE; InputController.releaseAll(client);
-        stuckTicks = 0; restartTicks = 0; preRestartWait = 0; jumpToggleTicks = 0; guiDelayTicks = 0; guiTimeoutTicks = 0; currentTarget = null;
+        stuckTicks = 0; restartTicks = 0; preRestartWait = 0; guiDelayTicks = 0; guiTimeoutTicks = 0; currentTarget = null;
         if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Stopped!"));
     }
+
     public void triggerPestProtocol(Minecraft client) {
         if (state == MacroState.IDLE || pestOnlyMode) return; 
         InputController.releaseAll(client);
@@ -151,25 +153,16 @@ public class FarmingMacro {
         double dy = (target.getY() + target.getEyeHeight() / 2.0) - client.player.getEyeY();
         double dz = target.getZ() - client.player.getZ();
         double dist = Math.sqrt(dx * dx + dz * dz);
-        if (dist < 0.05) dist = 0.05; // FIX: Prevents division-by-zero crashes
+        if (dist < 0.05) dist = 0.05; 
         float targetYaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0f);
         float targetPitch = (float) -(Math.toDegrees(Math.atan2(dy, dist)));
-        rotationHandler.updateTarget(targetYaw, targetPitch); // FIX: Updates smoothly for ML bypass
+        rotationHandler.updateTarget(targetYaw, targetPitch);
     }
+
     public void onTick(Minecraft client) {
         if (client.player == null || client.level == null || state == MacroState.IDLE) return;
         boolean isGuiState = (state == MacroState.WAITING_FOR_DESK || state == MacroState.DESK_DELAY || state == MacroState.WAITING_FOR_PLOT);
         if (client.screen != null && !isGuiState) { InputController.releaseAll(client); return; }
-
-        if (state == MacroState.FARMING || state == MacroState.PEST_HUNTING || pestOnlyMode) {
-            if (!client.player.getAbilities().flying && !client.player.onGround()) {
-                jumpToggleTicks++;
-                if (jumpToggleTicks == 1) InputController.setPressed(client.options.keyJump, true);
-                else if (jumpToggleTicks == 2) InputController.setPressed(client.options.keyJump, false);
-                else if (jumpToggleTicks == 3) InputController.setPressed(client.options.keyJump, true);
-                else if (jumpToggleTicks >= 4) { InputController.setPressed(client.options.keyJump, false); if (jumpToggleTicks > 20) jumpToggleTicks = 0; }
-            } else { if (jumpToggleTicks > 0) { InputController.setPressed(client.options.keyJump, false); jumpToggleTicks = 0; } }
-        }
 
         switch (state) {
             case RECORDING: handleRecording(client); break;
@@ -205,20 +198,15 @@ public class FarmingMacro {
                     client.player.closeContainer(); 
                     if (targetPlot != -1) {
                         if (client.player.connection != null) client.player.connection.sendCommand("tptoplot " + targetPlot);
-                        guiDelayTicks = 20; state = MacroState.PEST_FLY_UP; 
+                        equipSlot(client, vacuumSlot);
+                        state = MacroState.PEST_HUNTING; 
                     } else { state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch); }
                 }
-                break;
-            case PEST_FLY_UP:
-                guiDelayTicks--;
-                if (guiDelayTicks > 0) return; 
-                InputController.setPressed(client.options.keyJump, true); 
-                if (client.player.getY() > 130) { InputController.setPressed(client.options.keyJump, false); state = MacroState.PEST_HUNTING; }
                 break;
             case PEST_HUNTING:
                 rotationHandler.updateRotation(client); 
                 if (currentTarget == null || !currentTarget.isAlive() || currentTarget.isRemoved() || currentTarget.distanceToSqr(client.player) > 600.0) {
-                    InputController.setPressed(client.options.keyUse, false); // Release key when target lost
+                    InputController.setPressed(client.options.keyUse, false); 
                     currentTarget = scanForTarget(client);
                     if (currentTarget == null) {
                         if (!pestOnlyMode) {
@@ -227,14 +215,14 @@ public class FarmingMacro {
                             state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch);
                         }
                     } else {
-                        equipSlot(client, vacuumSlot); // FIX: Equip immediately when target found
+                        equipSlot(client, vacuumSlot); 
                     }
                     return;
                 }
                 if (currentTarget != null) { 
                     aimAt(client, currentTarget); 
                     if (!rotationHandler.isRotating()) {
-                        InputController.setPressed(client.options.keyUse, true); // PURE VANILLA: No artificial block. Just hold it down natively!
+                        InputController.setPressed(client.options.keyUse, true); 
                     } 
                 }
                 break;
@@ -245,6 +233,7 @@ public class FarmingMacro {
             case PEST_ONLY_MODE: break;
         }
     }
+
     private void handleRecording(Minecraft client) {
         TickRecord record = new TickRecord(
             client.options.keyUp.isDown(), client.options.keyLeft.isDown(), client.options.keyDown.isDown(), client.options.keyRight.isDown(),
