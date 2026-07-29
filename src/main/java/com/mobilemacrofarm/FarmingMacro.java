@@ -280,7 +280,7 @@ public class FarmingMacro {
             InputController.setPressed(client.options.keyUp, isMovingForward); InputController.setPressed(client.options.keyDown, !isMovingForward);
         } else if (mode.equals("cane")) {
             InputController.setPressed(client.options.keyLeft, false); InputController.setPressed(client.options.keyDown, false);
-            InputController.setPressed(client.options.keyUp, is movingForward); InputController.setPressed(client.options.keyRight, !isMovingForward);
+            InputController.setPressed(client.options.keyUp, isMovingForward); InputController.setPressed(client.options.keyRight, !isMovingForward);
         } else if (mode.equals("melon")) {
             InputController.setPressed(client.options.keyDown, false); InputController.setPressed(client.options.keyUp, true);
             InputController.setPressed(client.options.keyLeft, isMovingLeft); InputController.setPressed(client.options.keyRight, !isMovingLeft);
