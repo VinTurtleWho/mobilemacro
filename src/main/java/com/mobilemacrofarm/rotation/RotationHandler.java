@@ -7,20 +7,13 @@ public class RotationHandler {
     private float targetPitch = 0.0f;
     private boolean rotating = false;
 
-    private float noiseX = 0.0f;
-    private float noiseY = 0.0f;
-    private int ticksInRotation = 0;
-
     public void startRotation(float yaw, float pitch) {
-        this.targetYaw = yaw;
-        this.targetPitch = pitch;
+        // Picks a random static offset on the body instead of vibrating
+        this.targetYaw = yaw + (float) ((Math.random() - 0.5) * 1.5);
+        this.targetPitch = pitch + (float) ((Math.random() - 0.5) * 1.5);
         this.rotating = true;
-        this.ticksInRotation = 0;
-        this.noiseX = (float) ((Math.random() - 0.5) * 1.2);
-        this.noiseY = (float) ((Math.random() - 0.5) * 0.8);
     }
 
-    // NEW: Seamlessly updates the target without resetting the human tremor math!
     public void updateTarget(float yaw, float pitch) {
         this.targetYaw = yaw;
         this.targetPitch = pitch;
@@ -30,19 +23,11 @@ public class RotationHandler {
     public boolean updateRotation(Minecraft client) {
         if (!rotating || client.player == null) return true;
 
-        ticksInRotation++;
-
-        float currentNoiseX = noiseX + (float) Math.sin(ticksInRotation * 0.3) * 0.2f;
-        float currentNoiseY = noiseY + (float) Math.cos(ticksInRotation * 0.2) * 0.15f;
-
-        float effectiveTargetYaw = targetYaw + currentNoiseX;
-        float effectiveTargetPitch = targetPitch + currentNoiseY;
-
         float currentYaw = client.player.getYRot();
         float currentPitch = client.player.getXRot();
 
-        float yawDiff = effectiveTargetYaw - currentYaw;
-        float pitchDiff = effectiveTargetPitch - currentPitch;
+        float yawDiff = targetYaw - currentYaw;
+        float pitchDiff = targetPitch - currentPitch;
 
         while (yawDiff < -180.0f) yawDiff += 360.0f;
         while (yawDiff > 180.0f) yawDiff -= 360.0f;

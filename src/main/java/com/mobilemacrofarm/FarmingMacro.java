@@ -223,7 +223,7 @@ public class FarmingMacro {
             case PEST_HUNTING:
                 rotationHandler.updateRotation(client); 
                 if (currentTarget == null || !currentTarget.isAlive() || currentTarget.isRemoved() || currentTarget.distanceToSqr(client.player) > 400.0) {
-                    InputController.setPressed(client.options.keyUse, false); currentTarget = scanForTarget(client);
+                    InputController.setPressed(client.options.keyUse, false); currentTarget = scanForTarget(client); if(currentTarget != null) equipSlot(client, vacuumSlot);
                     if (currentTarget == null && !pestOnlyMode) {
                         if (client.player.connection != null) client.player.connection.sendCommand("warp garden");
                         state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch);
@@ -231,7 +231,7 @@ public class FarmingMacro {
                     }
                     return;
                 }
-                if (currentTarget != null) { aimAt(client, currentTarget); if (!rotationHandler.isRotating()) InputController.setPressed(client.options.keyUse, true); }
+                if (currentTarget != null) { aimAt(client, currentTarget); if (!rotationHandler.isRotating()) if(client.player.distanceTo(currentTarget) <= 3.5) InputController.setPressed(client.options.keyUse, true); else InputController.setPressed(client.options.keyUse, false); }
                 break;
             case ALIGNING: if (rotationHandler.updateRotation(client)) { equipSlot(client, toolSlot); state = MacroState.FARMING; } break;
             case FARMING: handleFarming(client); break;
