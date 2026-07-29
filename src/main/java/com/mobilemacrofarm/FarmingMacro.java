@@ -4,6 +4,7 @@ import com.mobilemacrofarm.input.InputController;
 import com.mobilemacrofarm.rotation.RotationHandler;
 import com.mobilemacrofarm.state.MacroState;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.network.chat.Component;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,18 +20,21 @@ public class FarmingMacro {
     private String mode = "cane"; 
     private boolean pestOnlyMode = false;
 
+    // Hotbar Slots (0-8)
     private int toolSlot = 0;
     private int vacuumSlot = 1;
 
+    // Farming Variables
     private boolean isMovingLeft = true;
     private boolean isMovingForward = true; 
     private int stuckTicks = 0;
     private int jumpToggleTicks = 0;
-    private int swapDelayTicks = 0; // Added for hotbar swapping
     
+    // Recorder Variables
     private final List<TickRecord> recordedPath = new ArrayList<>();
     private int replayIndex = 0;
 
+    // Restart Variables
     private Integer endX = null;
     private Integer endY = null;
     private Integer endZ = null;
@@ -68,16 +72,14 @@ public class FarmingMacro {
     public void stop(Minecraft client) {
         state = MacroState.IDLE;
         InputController.releaseAll(client);
-        InputController.setPressed(client.options.keyHotbarSlots[toolSlot], false);
-        InputController.setPressed(client.options.keyHotbarSlots[vacuumSlot], false);
         stuckTicks = 0;
         restartTicks = 0;
         preRestartWait = 0;
         jumpToggleTicks = 0;
-        swapDelayTicks = 0;
         if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Stopped!"));
     }
 
+    // --- RECORDER LOGIC ---
     public void startRecording(Minecraft client) {
         recordedPath.clear();
         state = MacroState.RECORDING;
@@ -89,7 +91,7 @@ public class FarmingMacro {
             if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] No path recorded!"));
             return;
         }
-        InputController.releaseAll(client); // FORCE drop all keys before replaying (fixes left click bug)
+        InputController.releaseAll(client); // FORCE drop all keys before replaying
         replayIndex = 0;
         state = MacroState.REPLAYING;
         if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Replaying path..."));
@@ -97,6 +99,7 @@ public class FarmingMacro {
 
     public void onTick(Minecraft client) {
         if (client.player == null || client.level == null) return;
+
         if (state == MacroState.IDLE) return;
 
         // GUI SAFETY CHECK
@@ -105,7 +108,7 @@ public class FarmingMacro {
             return; 
         }
 
-        // MECHANICAL FLIGHT ENFORCER FIX
+        // BULLETPROOF MECHANICAL FLIGHT ENFORCER
         if (state == MacroState.FARMING || state == MacroState.PEST_HUNTING || pestOnlyMode) {
             if (!client.player.getAbilities().flying && !client.player.onGround()) {
                 jumpToggleTicks++;
@@ -113,11 +116,15 @@ public class FarmingMacro {
                 else if (jumpToggleTicks == 2) InputController.setPressed(client.options.keyJump, false);
                 else if (jumpToggleTicks == 3) InputController.setPressed(client.options.keyJump, true);
                 else if (jumpToggleTicks >= 4) {
-                    InputController.setPressed(client.options.keyJump, false); // EXPLICITLY let go of spacebar
-                    if (jumpToggleTicks > 20) jumpToggleTicks = 0; // Wait 1 full second before trying again
+                    InputController.setPressed(client.options.keyJump, false); 
+                    if (jumpToggleTicks > 20) jumpToggleTicks = 0; 
                 }
             } else {
-                jumpToggleTicks = 0;
+                // If they are flying or on the ground, ensure jump is instantly released!
+                if (jumpToggleTicks > 0) {
+                    InputController.setPressed(client.options.keyJump, false);
+                    jumpToggleTicks = 0;
+                }
             }
         }
 
@@ -130,17 +137,8 @@ public class FarmingMacro {
                 break;
             case ALIGNING:
                 if (rotationHandler.updateRotation(client)) {
-                    state = MacroState.SWAPPING_TOOL;
-                    swapDelayTicks = 0;
-                }
-                break;
-            case SWAPPING_TOOL:
-                swapDelayTicks++;
-                if (swapDelayTicks == 1) {
-                    InputController.setPressed(client.options.keyHotbarSlots[toolSlot], true);
-                } else if (swapDelayTicks > 3) {
-                    // Held it for 3 ticks, now it's safe to release and farm
-                    InputController.setPressed(client.options.keyHotbarSlots[toolSlot], false);
+                    // Perfectly simulates a real hotbar key press for the game engine
+                    KeyMapping.click(client.options.keyHotbarSlots[toolSlot].getKey());
                     state = MacroState.FARMING;
                 }
                 break;
@@ -154,6 +152,7 @@ public class FarmingMacro {
                 handleRestart(client);
                 break;
             case PEST_ONLY_MODE:
+                // Stub for Part 2
                 break;
         }
     }
@@ -184,8 +183,6 @@ public class FarmingMacro {
         InputController.setPressed(client.options.keyDown, frame.s);
         InputController.setPressed(client.options.keyRight, frame.d);
         InputController.setPressed(client.options.keyJump, frame.space);
-        
-        // FIX: Now replays shift (sneak) and forces left/right click off!
         InputController.setPressed(client.options.keyShift, frame.sneak); 
         InputController.setPressed(client.options.keyAttack, false); 
         InputController.setPressed(client.options.keyUse, false);
