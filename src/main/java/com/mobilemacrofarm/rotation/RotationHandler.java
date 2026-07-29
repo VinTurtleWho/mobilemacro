@@ -1,11 +1,10 @@
 package com.mobilemacrofarm.rotation;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.Mth;
 
 public class RotationHandler {
-    private float targetYaw;
-    private float targetPitch;
+    private float targetYaw = 0.0f;
+    private float targetPitch = 0.0f;
     private boolean rotating = false;
 
     public void startRotation(float yaw, float pitch) {
@@ -20,24 +19,37 @@ public class RotationHandler {
         float currentYaw = client.player.getYRot();
         float currentPitch = client.player.getXRot();
 
-        float yawDiff = Mth.wrapDegrees(targetYaw - currentYaw);
+        float yawDiff = targetYaw - currentYaw;
         float pitchDiff = targetPitch - currentPitch;
 
-        if (Math.abs(yawDiff) < 0.8f && Math.abs(pitchDiff) < 0.8f) {
-            client.player.setYRot(targetYaw + (float)(Math.random() * 0.1 - 0.05));
-            client.player.setXRot(targetPitch + (float)(Math.random() * 0.1 - 0.05));
+        while (yawDiff < -180.0f) yawDiff += 360.0f;
+        while (yawDiff > 180.0f) yawDiff -= 360.0f;
+
+        if (Math.abs(yawDiff) < 0.5f && Math.abs(pitchDiff) < 0.5f) {
+            client.player.setYRot(targetYaw);
+            client.player.setXRot(targetPitch);
             rotating = false;
             return true;
         }
 
-        float stepYaw = yawDiff * 0.2f + (float)(Math.random() * 0.08 - 0.04);
-        float stepPitch = pitchDiff * 0.2f + (float)(Math.random() * 0.08 - 0.04);
+        // GCD Calculation to bypass AimModulo360 checks in Grim AC
+        double sensitivity = client.options.sensitivity().get();
+        float f = (float) (sensitivity * 0.6 + 0.2);
+        float gcd = f * f * f * 1.2f;
+
+        float stepYaw = Math.max(0.5f, Math.min(Math.abs(yawDiff), 4.0f)) * Math.signum(yawDiff);
+        float stepPitch = Math.max(0.5f, Math.min(Math.abs(pitchDiff), 2.0f)) * Math.signum(pitchDiff);
+
+        stepYaw = Math.round(stepYaw / gcd) * gcd;
+        stepPitch = Math.round(stepPitch / gcd) * gcd;
 
         client.player.setYRot(currentYaw + stepYaw);
-        client.player.setXRot(currentPitch + stepPitch);
+        client.player.setXRot(Math.max(-90.0f, Math.min(90.0f, currentPitch + stepPitch)));
 
         return false;
     }
 
-    public boolean isRotating() { return rotating; }
+    public boolean isRotating() {
+        return rotating;
+    }
 }

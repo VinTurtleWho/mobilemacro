@@ -29,10 +29,8 @@ public class MobileMacro implements ModInitializer {
             FarmingMacro.getInstance().onTick(client);
         });
 
-        // NEW: INCOMING CHAT INTERCEPTOR
         ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
             String text = message.getString();
-            // Checking for exact server message trigger
             if (text.contains("A pest has appeared") || text.contains("A Pest has appeared")) {
                 FarmingMacro.getInstance().triggerPestProtocol(Minecraft.getInstance());
             }
@@ -51,7 +49,7 @@ public class MobileMacro implements ModInitializer {
                         else if (type.equals("pestonly")) { FarmingMacro.getInstance().setPestOnly(true); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Mode set to PEST ONLY")); } 
                         else if (type.equals("farmonly")) { FarmingMacro.getInstance().setPestOnly(false); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Mode set to NORMAL FARMING")); } 
                         else if (type.equals("tool")) { int slot = Integer.parseInt(parts[2]) - 1; FarmingMacro.getInstance().setToolSlot(slot); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Tool slot set to " + (slot+1))); } 
-                        else if (type.equals("vacuum")) { int slot = Integer.parseInt(parts[2]) - 1; FarmingMacro.getInstance().setVacuumSlot(slot); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Vacuum slot set to " + (slot+1))); } 
+                        else if (type.equals("vacuum")) { int slot = Integer.parseInt(parts[2]) - 1; FarmingMacro.getInstance().setVacuumSlot(slot); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Vacuum slot set to " + (slot+1))) ; } 
                         else if (type.equals("end")) {
                             if (parts.length == 2) { FarmingMacro.getInstance().setEndBlock(client.player.getBlockX(), client.player.getBlockY(), client.player.getBlockZ()); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] End Block set!")); } 
                             else if (parts.length == 3 && parts[2].equalsIgnoreCase("clear")) { FarmingMacro.getInstance().setEndBlock(null, null, null); client.player.sendSystemMessage(Component.literal("§a[MobileMacro] End Block cleared!")); }

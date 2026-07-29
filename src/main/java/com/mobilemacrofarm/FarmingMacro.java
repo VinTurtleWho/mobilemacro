@@ -5,7 +5,6 @@ import com.mobilemacrofarm.rotation.RotationHandler;
 import com.mobilemacrofarm.state.MacroState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -17,29 +16,21 @@ import java.lang.reflect.Method;
 
 public class FarmingMacro {
     private static final FarmingMacro INSTANCE = new FarmingMacro();
-
     private MacroState state = MacroState.IDLE;
     private final RotationHandler rotationHandler = new RotationHandler();
-
     private float defaultYaw = 45.0f;
     private float defaultPitch = 0.0f;
     private String mode = "cane"; 
     private boolean pestOnlyMode = false;
-
     private int toolSlot = 0;
     private int vacuumSlot = 1;
-
     private boolean isMovingLeft = true;
     private boolean isMovingForward = true; 
     private int stuckTicks = 0;
     private int jumpToggleTicks = 0;
-    
-    // GUI Randomizer Variables
     private int guiDelayTicks = 0;
-
     private final List<TickRecord> recordedPath = new ArrayList<>();
     private int replayIndex = 0;
-
     private Integer endX = null;
     private Integer endY = null;
     private Integer endZ = null;
@@ -81,17 +72,15 @@ public class FarmingMacro {
 
     public void triggerPestProtocol(Minecraft client) {
         if (state == MacroState.IDLE) return; 
-        
         InputController.releaseAll(client);
         if (client.player.connection != null) {
             client.player.connection.sendCommand("setspawnlocation"); 
             client.player.connection.sendCommand("desk");
         }
         state = MacroState.WAITING_FOR_DESK;
-        client.player.sendSystemMessage(Component.literal("§e[MobileMacro] Pest detected! Scraping /desk..."));
+        if (client.player != null) client.player.sendSystemMessage(Component.literal("§e[MobileMacro] Pest detected! Scraping /desk..."));
     }
 
-    // --- GOD-TIER REFLECTION HELPERS (Version Agnostic & Ban Safe) ---
     private void equipSlot(Minecraft client, int slot) {
         if (client.player == null) return;
         try {
@@ -105,7 +94,6 @@ public class FarmingMacro {
                 obfField.set(client.player.getInventory(), slot);
             } catch (Exception ex) { }
         }
-        if (client.player.connection != null) client.player.connection.send(new ServerboundSetCarriedItemPacket(slot));
     }
 
     private void safeClick(Minecraft client, AbstractContainerScreen<?> screen, Slot slot) {
@@ -129,12 +117,12 @@ public class FarmingMacro {
         try {
             for (Method m : stack.getClass().getMethods()) {
                 if (m.getName().equals("getTooltipLines")) {
-                    if (m.getParameterCount() == 3) { // 1.20.6+ Structure
+                    if (m.getParameterCount() == 3) {
                         Class<?> ctxClass = Class.forName("net.minecraft.world.item.Item$TooltipContext");
                         Method ofMethod = ctxClass.getMethod("of", net.minecraft.world.level.Level.class);
                         Object context = ofMethod.invoke(null, client.level);
                         return (List<Component>) m.invoke(stack, context, client.player, TooltipFlag.Default.NORMAL);
-                    } else if (m.getParameterCount() == 2) { // 1.20.4 Structure
+                    } else if (m.getParameterCount() == 2) {
                         return (List<Component>) m.invoke(stack, client.player, TooltipFlag.Default.NORMAL);
                     }
                 }
@@ -142,17 +130,20 @@ public class FarmingMacro {
         } catch (Exception e) { }
         return new ArrayList<>();
     }
-    // -----------------------------------------------------------------
 
     public void startRecording(Minecraft client) {
         recordedPath.clear(); state = MacroState.RECORDING;
-        if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Recording started..."));
+        if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Recording started... Walk the path!"));
     }
 
     public void startReplay(Minecraft client) {
-        if (recordedPath.isEmpty()) return;
+        if (recordedPath.isEmpty()) {
+            if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] No path recorded!"));
+            return;
+        }
         InputController.releaseAll(client); 
         replayIndex = 0; state = MacroState.REPLAYING;
+        if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Replaying path..."));
     }
 
     public void onTick(Minecraft client) {
@@ -171,13 +162,25 @@ public class FarmingMacro {
                 if (jumpToggleTicks == 1) InputController.setPressed(client.options.keyJump, true);
                 else if (jumpToggleTicks == 2) InputController.setPressed(client.options.keyJump, false);
                 else if (jumpToggleTicks == 3) InputController.setPressed(client.options.keyJump, true);
-                else if (jumpToggleTicks >= 4) { InputController.setPressed(client.options.keyJump, false); if (jumpToggleTicks > 20) jumpToggleTicks = 0; }
+                else if (jumpToggleTicks >= 4) { 
+                    InputController.setPressed(client.options.keyJump, false); 
+                    if (jumpToggleTicks > 20) jumpToggleTicks = 0; 
+                }
             } else {
-                if (jumpToggleTicks > 0) { InputController.setPressed(client.options.keyJump, false); jumpToggleTicks = 0; }
+                if (jumpToggleTicks > 0) { 
+                    InputController.setPressed(client.options.keyJump, false); 
+                    jumpToggleTicks = 0; 
+                }
             }
         }
 
         switch (state) {
+            case RECORDING:
+                handleRecording(client);
+                break;
+            case REPLAYING:
+                handleReplaying(client);
+                break;
             case WAITING_FOR_DESK:
                 if (client.screen instanceof AbstractContainerScreen) {
                     guiDelayTicks = 10 + (int)(Math.random() * 15); 
@@ -191,7 +194,7 @@ public class FarmingMacro {
                     boolean found = false;
                     for (Slot slot : screen.getMenu().slots) {
                         if (slot.getItem().getHoverName().getString().contains("Configure Plot")) {
-                            safeClick(client, screen, slot); // Use safe reflection click
+                            safeClick(client, screen, slot);
                             found = true; break;
                         }
                     }
@@ -206,13 +209,11 @@ public class FarmingMacro {
                 if (guiDelayTicks <= 0 && client.screen instanceof AbstractContainerScreen) {
                     AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.screen;
                     int targetPlot = -1;
-                    
                     for (Slot slot : screen.getMenu().slots) {
                         ItemStack stack = slot.getItem();
                         String name = stack.getHoverName().getString();
                         if (name.contains("Plot")) {
                             boolean hasPest = false;
-                            // Safely extract Lore using reflection
                             List<Component> lore = getSafeTooltip(stack, client);
                             for (Component comp : lore) {
                                 if (comp.getString().contains("Pests:")) { hasPest = true; break; }
@@ -223,14 +224,13 @@ public class FarmingMacro {
                             }
                         }
                     }
-                    
                     client.player.closeContainer(); 
                     if (targetPlot != -1) {
                         if (client.player.connection != null) client.player.connection.sendCommand("tptoplot " + targetPlot);
-                        client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Target Plot: " + targetPlot + " found! Teleporting..."));
+                        if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Target Plot: " + targetPlot + " found! Teleporting..."));
                         state = MacroState.PEST_FLY_UP; 
                     } else {
-                        client.player.sendSystemMessage(Component.literal("§c[MobileMacro] No pests found in GUI! Resuming..."));
+                        if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] No pests found in GUI! Resuming..."));
                         if (client.player.connection != null) client.player.connection.sendCommand("warp garden");
                         state = MacroState.ALIGNING;
                         rotationHandler.startRotation(defaultYaw, defaultPitch);
@@ -238,11 +238,14 @@ public class FarmingMacro {
                 }
                 break;
             case PEST_FLY_UP:
-                client.player.sendSystemMessage(Component.literal("§e[MobileMacro] (Waiting for Aimbot Code)"));
+                if (client.player != null) client.player.sendSystemMessage(Component.literal("§e[MobileMacro] Ready for Aimbot Code!"));
                 state = MacroState.IDLE;
                 break;
             case ALIGNING:
-                if (rotationHandler.updateRotation(client)) { equipSlot(client, toolSlot); state = MacroState.FARMING; }
+                if (rotationHandler.updateRotation(client)) {
+                    equipSlot(client, toolSlot);
+                    state = MacroState.FARMING;
+                }
                 break;
             case FARMING:
                 handleFarming(client);
@@ -253,21 +256,125 @@ public class FarmingMacro {
             case RESTARTING:
                 handleRestart(client);
                 break;
-            case RECORDING:
-                handleRecording(client);
-                break;
-            case REPLAYING:
-                handleReplaying(client);
-                break;
-            default:
+            case PEST_ONLY_MODE:
                 break;
         }
     }
 
-    private void handleRecording(Minecraft client) { /* Handled internally */ }
-    private void handleReplaying(Minecraft client) { /* Handled internally */ }
-    private void handleFarming(Minecraft client) { /* Handled internally */ }
-    private void handleLaneShift(Minecraft client) { /* Handled internally */ }
-    private void handleRestart(Minecraft client) { /* Handled internally */ }
+    private void handleRecording(Minecraft client) {
+        TickRecord record = new TickRecord(
+            client.options.keyUp.isDown(), client.options.keyLeft.isDown(),
+            client.options.keyDown.isDown(), client.options.keyRight.isDown(),
+            client.options.keyJump.isDown(), client.options.keyShift.isDown(),
+            client.options.keyAttack.isDown(), client.options.keyUse.isDown(),
+            client.player.getYRot(), client.player.getXRot()
+        );
+        recordedPath.add(record);
+    }
+
+    private void handleReplaying(Minecraft client) {
+        if (replayIndex >= recordedPath.size()) {
+            InputController.releaseAll(client);
+            if (client.player.connection != null) client.player.connection.sendCommand("setspawnlocation");
+            state = MacroState.ALIGNING;
+            rotationHandler.startRotation(defaultYaw, defaultPitch);
+            return;
+        }
+
+        TickRecord frame = recordedPath.get(replayIndex);
+        InputController.setPressed(client.options.keyUp, frame.w);
+        InputController.setPressed(client.options.keyLeft, frame.a);
+        InputController.setPressed(client.options.keyDown, frame.s);
+        InputController.setPressed(client.options.keyRight, frame.d);
+        InputController.setPressed(client.options.keyJump, frame.space);
+        InputController.setPressed(client.options.keyShift, frame.sneak); 
+        InputController.setPressed(client.options.keyAttack, false); 
+        InputController.setPressed(client.options.keyUse, false);
+        
+        client.player.setYRot(frame.yaw);
+        client.player.setXRot(frame.pitch);
+        replayIndex++;
+    }
+
+    private void handleFarming(Minecraft client) {
+        if (endX != null && endY != null && endZ != null) {
+            if (client.player.getBlockX() == endX && client.player.getBlockY() == endY && client.player.getBlockZ() == endZ) {
+                if (!recordedPath.isEmpty()) {
+                    startReplay(client);
+                } else {
+                    state = MacroState.RESTARTING;
+                    preRestartWait = 0; restartTicks = 0;
+                    targetPreRestartWait = 15 + (int)(Math.random() * 25); 
+                }
+                return;
+            }
+        }
+
+        InputController.setPressed(client.options.keyAttack, true);
+
+        if (mode.equals("mushroom")) {
+            InputController.setPressed(client.options.keyLeft, false);
+            InputController.setPressed(client.options.keyRight, false);
+            if (isMovingForward) {
+                InputController.setPressed(client.options.keyUp, true);
+                InputController.setPressed(client.options.keyDown, false);
+            } else {
+                InputController.setPressed(client.options.keyUp, false);
+                InputController.setPressed(client.options.keyDown, true);
+            }
+        } else if (mode.equals("cane")) {
+            InputController.setPressed(client.options.keyLeft, false);
+            InputController.setPressed(client.options.keyDown, false);
+            if (isMovingForward) {
+                InputController.setPressed(client.options.keyUp, true);
+                InputController.setPressed(client.options.keyRight, false);
+            } else {
+                InputController.setPressed(client.options.keyUp, false);
+                InputController.setPressed(client.options.keyRight, true);
+            }
+        } else if (mode.equals("melon")) {
+            InputController.setPressed(client.options.keyDown, false);
+            InputController.setPressed(client.options.keyUp, true);
+            if (isMovingLeft) {
+                InputController.setPressed(client.options.keyLeft, true);
+                InputController.setPressed(client.options.keyRight, false);
+            } else {
+                InputController.setPressed(client.options.keyRight, true);
+                InputController.setPressed(client.options.keyLeft, false);
+            }
+        }
+
+        double speed = client.player.getDeltaMovement().horizontalDistanceSqr();
+        if (speed < 0.001) {
+            stuckTicks++;
+            if (stuckTicks > 5) { stuckTicks = 0; state = MacroState.SHIFTING_LANE; }
+        } else { stuckTicks = 0; }
+    }
+
+    private void handleLaneShift(Minecraft client) {
+        InputController.releaseAll(client);
+        if (mode.equals("mushroom") || mode.equals("cane")) { isMovingForward = !isMovingForward; } 
+        else if (mode.equals("melon")) { isMovingLeft = !isMovingLeft; }
+        state = MacroState.FARMING;
+    }
+
+    private void handleRestart(Minecraft client) {
+        InputController.releaseAll(client);
+        preRestartWait++;
+        if (preRestartWait == targetPreRestartWait) {
+            if (client.player.connection != null) {
+                client.player.connection.sendCommand("warp garden");
+                if (client.player != null) client.player.sendSystemMessage(Component.literal("§e[MobileMacro] Restarting farm..."));
+            }
+        } else if (preRestartWait > targetPreRestartWait) {
+            restartTicks++;
+            if (restartTicks > 100) {
+                restartTicks = 0; preRestartWait = 0;
+                state = MacroState.ALIGNING;
+                rotationHandler.startRotation(defaultYaw, defaultPitch);
+            }
+        }
+    }
+
     public MacroState getState() { return state; }
 }
