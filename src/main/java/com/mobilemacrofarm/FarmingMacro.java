@@ -8,6 +8,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import java.util.ArrayList;
 import java.util.List;
+import java.lang.reflect.Field;
 
 public class FarmingMacro {
     private static final FarmingMacro INSTANCE = new FarmingMacro();
@@ -75,11 +76,24 @@ public class FarmingMacro {
         if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Stopped!"));
     }
 
+    // THE GOD-TIER REFLECTION HACK (Bypasses private access)
     private void equipSlot(Minecraft client, int slot) {
         if (client.player == null) return;
-        // Use our VIP access file to instantly change the slot visually
-        net.minecraft.world.entity.player.InventoryHelper.setSlot(client.player.getInventory(), slot);
-        // Silently tell Hypixel we swapped our item
+        try {
+            // Try developer mapping name
+            Field field = net.minecraft.world.entity.player.Inventory.class.getDeclaredField("selected");
+            field.setAccessible(true); // Rips the padlock off the private variable
+            field.set(client.player.getInventory(), slot);
+        } catch (Exception e) {
+            try {
+                // Fallback to the obfuscated production name if necessary
+                Field obfField = net.minecraft.world.entity.player.Inventory.class.getDeclaredField("field_7545");
+                obfField.setAccessible(true);
+                obfField.set(client.player.getInventory(), slot);
+            } catch (Exception ex) { }
+        }
+        
+        // Silently tell Hypixel server we swapped
         if (client.player.connection != null) {
             client.player.connection.send(new ServerboundSetCarriedItemPacket(slot));
         }
@@ -139,7 +153,7 @@ public class FarmingMacro {
                 break;
             case ALIGNING:
                 if (rotationHandler.updateRotation(client)) {
-                    equipSlot(client, toolSlot); // INSTANT SWAP
+                    equipSlot(client, toolSlot); // Execute the Reflection Hack!
                     state = MacroState.FARMING;
                 }
                 break;
