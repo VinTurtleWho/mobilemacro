@@ -4,8 +4,8 @@ import com.mobilemacrofarm.input.InputController;
 import com.mobilemacrofarm.rotation.RotationHandler;
 import com.mobilemacrofarm.state.MacroState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,21 +20,17 @@ public class FarmingMacro {
     private String mode = "cane"; 
     private boolean pestOnlyMode = false;
 
-    // Hotbar Slots (0-8)
     private int toolSlot = 0;
     private int vacuumSlot = 1;
 
-    // Farming Variables
     private boolean isMovingLeft = true;
     private boolean isMovingForward = true; 
     private int stuckTicks = 0;
     private int jumpToggleTicks = 0;
     
-    // Recorder Variables
     private final List<TickRecord> recordedPath = new ArrayList<>();
     private int replayIndex = 0;
 
-    // Restart Variables
     private Integer endX = null;
     private Integer endY = null;
     private Integer endZ = null;
@@ -79,7 +75,16 @@ public class FarmingMacro {
         if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] Stopped!"));
     }
 
-    // --- RECORDER LOGIC ---
+    private void equipSlot(Minecraft client, int slot) {
+        if (client.player == null) return;
+        // Use our VIP access file to instantly change the slot visually
+        net.minecraft.world.entity.player.InventoryHelper.setSlot(client.player.getInventory(), slot);
+        // Silently tell Hypixel we swapped our item
+        if (client.player.connection != null) {
+            client.player.connection.send(new ServerboundSetCarriedItemPacket(slot));
+        }
+    }
+
     public void startRecording(Minecraft client) {
         recordedPath.clear();
         state = MacroState.RECORDING;
@@ -91,7 +96,7 @@ public class FarmingMacro {
             if (client.player != null) client.player.sendSystemMessage(Component.literal("§c[MobileMacro] No path recorded!"));
             return;
         }
-        InputController.releaseAll(client); // FORCE drop all keys before replaying
+        InputController.releaseAll(client); 
         replayIndex = 0;
         state = MacroState.REPLAYING;
         if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Replaying path..."));
@@ -102,13 +107,11 @@ public class FarmingMacro {
 
         if (state == MacroState.IDLE) return;
 
-        // GUI SAFETY CHECK
         if (client.screen != null && state != MacroState.PEST_GUI_SCAN) {
             InputController.releaseAll(client);
             return; 
         }
 
-        // BULLETPROOF MECHANICAL FLIGHT ENFORCER
         if (state == MacroState.FARMING || state == MacroState.PEST_HUNTING || pestOnlyMode) {
             if (!client.player.getAbilities().flying && !client.player.onGround()) {
                 jumpToggleTicks++;
@@ -120,7 +123,6 @@ public class FarmingMacro {
                     if (jumpToggleTicks > 20) jumpToggleTicks = 0; 
                 }
             } else {
-                // If they are flying or on the ground, ensure jump is instantly released!
                 if (jumpToggleTicks > 0) {
                     InputController.setPressed(client.options.keyJump, false);
                     jumpToggleTicks = 0;
@@ -137,8 +139,7 @@ public class FarmingMacro {
                 break;
             case ALIGNING:
                 if (rotationHandler.updateRotation(client)) {
-                    // Perfectly simulates a real hotbar key press for the game engine
-                    KeyMapping.click(client.options.keyHotbarSlots[toolSlot].getKey());
+                    equipSlot(client, toolSlot); // INSTANT SWAP
                     state = MacroState.FARMING;
                 }
                 break;
@@ -152,7 +153,6 @@ public class FarmingMacro {
                 handleRestart(client);
                 break;
             case PEST_ONLY_MODE:
-                // Stub for Part 2
                 break;
         }
     }
