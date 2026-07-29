@@ -46,8 +46,9 @@ public class RotationHandler {
         // SMOOTH LINEAR EASE-OUT: Move exactly 20% of the remaining distance per tick.
         // Cap max turn speed at 25 degrees/tick to prevent SPEED_SIMULATION flags.
         float maxTurn = 25.0f; 
-        float stepYaw = Math.max(-maxTurn, Math.min(maxTurn, yawDiff * 0.20f));
-        float stepPitch = Math.max(-maxTurn, Math.min(maxTurn, pitchDiff * 0.20f));
+        float dynamicSmoothing = 0.18f + (float)(Math.random() * 0.05f);
+        float stepYaw = Math.max(-maxTurn, Math.min(maxTurn, yawDiff * dynamicSmoothing));
+        float stepPitch = Math.max(-maxTurn, Math.min(maxTurn, pitchDiff * dynamicSmoothing));
 
         // Quantize the smooth curve to strict physical mouse pixels
         int mouseDeltaX = Math.round(stepYaw / stepMult);
