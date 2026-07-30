@@ -40,6 +40,10 @@ public class FarmingMacro {
     private int targetPreRestartWait = 20;
     private int restartTicks = 0;
 
+    // Aimbot Tolerance Variables
+    private float lastTargetYaw = 0.0f;
+    private float lastTargetPitch = 0.0f;
+
     // Chest Stealer GUI Tester Variables
     private boolean testingChest = false;
     private int chestSlotIndex = 0;
@@ -109,9 +113,7 @@ public class FarmingMacro {
                         String n = ec.toString();
                         if (n.equals("QUICK_MOVE") || n.equals("SHIFT_CLICK")) { action = ec; break; }
                     }
-                    if (action != null) {
-                        m.invoke(client.gameMode, screen.getMenu().containerId, slot.index, 0, action, client.player);
-                    }
+                    if (action != null) { m.invoke(client.gameMode, screen.getMenu().containerId, slot.index, 0, action, client.player); }
                     break;
                 }
             }
@@ -164,34 +166,40 @@ public class FarmingMacro {
         double dx = target.getX() - client.player.getX();
         double dy = (target.getY() + target.getEyeHeight() / 2.0) - client.player.getEyeY();
         double dz = target.getZ() - client.player.getZ();
-        double dist = Math.sqrt(dx * dx + dz * dz);
-        if (dist < 0.05) dist = 0.05; 
-        float targetYaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0f);
-        float targetPitch = (float) -(Math.toDegrees(Math.atan2(dy, dist)));
-        rotationHandler.updateTarget(targetYaw, targetPitch);
+        double horizDist = Math.sqrt(dx * dx + dz * dz);
+        
+        float exactYaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0f);
+        float exactPitch = (float) -(Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz))));
+
+        if (horizDist > 25.0) {
+            // Lazy Aim: Look generally towards them, but keep head level
+            lastTargetYaw = exactYaw;
+            lastTargetPitch = 0.0f; 
+        } else {
+            // Precision Aim: Lock onto the exact body coordinates
+            lastTargetYaw = exactYaw;
+            lastTargetPitch = exactPitch;
+        }
+        rotationHandler.updateTarget(lastTargetYaw, lastTargetPitch);
     }
 
     public void onTick(Minecraft client) {
         if (client.player == null || client.level == null) return;
 
-        // Chest Stealer GUI Handler (Bypasses IDLE state check)
         if (testingChest) {
             if (client.screen instanceof AbstractContainerScreen) {
                 guiDelayTicks--;
                 if (guiDelayTicks <= 0) {
                     AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.screen;
                     int containerSlots = screen.getMenu().slots.size() - 36;
-                    while (chestSlotIndex < containerSlots && !screen.getMenu().slots.get(chestSlotIndex).hasItem()) {
-                        chestSlotIndex++;
-                    }
+                    while (chestSlotIndex < containerSlots && !screen.getMenu().slots.get(chestSlotIndex).hasItem()) { chestSlotIndex++; }
                     if (chestSlotIndex < containerSlots) {
                         Slot slot = screen.getMenu().slots.get(chestSlotIndex);
                         safeClick(client, screen, slot);
                         chestSlotIndex++;
-                        guiDelayTicks = 4 + (int)(Math.random() * 5); // Humanized 4-8 ticks delay
+                        guiDelayTicks = 4 + (int)(Math.random() * 5); 
                     } else {
-                        client.player.closeContainer();
-                        testingChest = false;
+                        client.player.closeContainer(); testingChest = false;
                         if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Chest Steal Complete!"));
                     }
                 }
@@ -200,7 +208,6 @@ public class FarmingMacro {
         }
 
         if (state == MacroState.IDLE) return;
-
         boolean isGuiState = (state == MacroState.WAITING_FOR_DESK || state == MacroState.DESK_DELAY || state == MacroState.WAITING_FOR_PLOT);
         if (client.screen != null && !isGuiState) { InputController.releaseAll(client); return; }
 
@@ -257,9 +264,7 @@ public class FarmingMacro {
                             if (client.player.connection != null) client.player.connection.sendCommand("warp garden");
                             state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch);
                         }
-                    } else {
-                        equipSlot(client, vacuumSlot);
-                    }
+                    } else { equipSlot(client, vacuumSlot); }
                     return;
                 }
 
@@ -283,17 +288,21 @@ public class FarmingMacro {
                     double dx = currentTarget.getX() - client.player.getX();
                     double dz = currentTarget.getZ() - client.player.getZ();
                     double horizDist = Math.sqrt(dx * dx + dz * dz);
+                    if (horizDist > 3.0) { InputController.setPressed(client.options.keyUp, true); } 
+                    else { InputController.setPressed(client.options.keyUp, false); }
 
-                    if (horizDist > 3.0) {
-                        InputController.setPressed(client.options.keyUp, true);
-                    } else {
-                        InputController.setPressed(client.options.keyUp, false);
-                    }
-
-                    // 3. Vacuum Sucking (ONLY when camera rotation is locked to prevent Grim RotationBreak)
+                    // 3. Vacuum Sucking (10-Degree Jiggle Tolerance Locking)
                     double totalDist = client.player.distanceTo(currentTarget);
-                    boolean isAimLocked = !rotationHandler.isRotating();
-                    if (totalDist <= 5.0 && isAimLocked) {
+                    float currentYaw = client.player.getYRot();
+                    float currentPitch = client.player.getXRot();
+                    
+                    float yawDiff = Math.abs(currentYaw - lastTargetYaw) % 360.0f;
+                    if (yawDiff > 180.0f) yawDiff = 360.0f - yawDiff;
+                    float pitchDiff = Math.abs(currentPitch - lastTargetPitch);
+                    
+                    boolean isWithinTolerance = (yawDiff <= 10.0f && pitchDiff <= 10.0f);
+                    
+                    if (totalDist <= 5.0 && isWithinTolerance) {
                         InputController.setPressed(client.options.keyUse, true);
                     } else {
                         InputController.setPressed(client.options.keyUse, false);
