@@ -255,7 +255,7 @@ public class FarmingMacro {
                 if (currentTarget != null) {
                     aimAt(client, currentTarget);
 
-                    // 1. Vertical Height Adjustment (Space / Shift)
+                    // 1. Vertical Height Adjustment
                     double yDiff = currentTarget.getY() - client.player.getY();
                     if (yDiff > 1.2) {
                         InputController.setPressed(client.options.keyJump, true);
@@ -268,7 +268,7 @@ public class FarmingMacro {
                         InputController.setPressed(client.options.keyShift, false);
                     }
 
-                    // 2. Horizontal Distance Adjustment (W Key)
+                    // 2. Horizontal Distance Adjustment
                     double dx = currentTarget.getX() - client.player.getX();
                     double dz = currentTarget.getZ() - client.player.getZ();
                     double horizDist = Math.sqrt(dx * dx + dz * dz);
@@ -279,7 +279,7 @@ public class FarmingMacro {
                         InputController.setPressed(client.options.keyUp, false);
                     }
 
-                    // 3. Vacuum Sucking (Total 3D Distance <= 5.0)
+                    // 3. Vacuum Sucking
                     double totalDist = client.player.distanceTo(currentTarget);
                     if (totalDist <= 5.0) {
                         if (!rotationHandler.isRotating()) {
@@ -336,7 +336,7 @@ public class FarmingMacro {
             InputController.setPressed(client.options.keyUp, isMovingForward); InputController.setPressed(client.options.keyRight, !isMovingForward);
         } else if (mode.equals("melon")) {
             InputController.setPressed(client.options.keyDown, false); InputController.setPressed(client.options.keyUp, true);
-            InputController.setPressed(client.options.keyLeft, is movingLeft); InputController.setPressed(client.options.keyRight, !isMovingLeft);
+            InputController.setPressed(client.options.keyLeft, isMovingLeft); InputController.setPressed(client.options.keyRight, !isMovingLeft);
         }
         double speed = client.player.getDeltaMovement().horizontalDistanceSqr();
         if (speed < 0.001) { stuckTicks++; if (stuckTicks > 5) { stuckTicks = 0; state = MacroState.SHIFTING_LANE; } } else { stuckTicks = 0; }
@@ -350,5 +350,13 @@ public class FarmingMacro {
     }
 
     private void handleRestart(Minecraft client) {
-        InputControll
-
+        InputController.releaseAll(client); preRestartWait++;
+        if (preRestartWait == targetPreRestartWait) {
+            if (client.player.connection != null) client.player.connection.sendCommand("warp garden");
+        } else if (preRestartWait > targetPreRestartWait) {
+            restartTicks++;
+            if (restartTicks > 100) { restartTicks = 0; preRestartWait = 0; state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch); }
+        }
+    }
+    public MacroState getState() { return state; }
+}
