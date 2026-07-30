@@ -53,7 +53,7 @@ public class FarmingMacro {
     public void setMode(String newMode) { this.mode = newMode; }
     public void setPestOnly(boolean val) { this.pestOnlyMode = val; }
     public void setTargetMode(String mode) { this.targetMode = mode; }
-    public void setTestingChest(boolean val) { this.testingChest = val; this.chestSlotIndex = 0; }
+    public void setTestingChest(boolean val) { this.testingChest = val; this.chestSlotIndex = 0; this.guiDelayTicks = 10; }
     public void setToolSlot(int slot) { this.toolSlot = slot; }
     public void setVacuumSlot(int slot) { this.vacuumSlot = slot; }
     public int getVacuumSlot() { return this.vacuumSlot; }
@@ -165,30 +165,34 @@ public class FarmingMacro {
     }
 
     public void onTick(Minecraft client) {
-        if (client.player == null || client.level == null || state == MacroState.IDLE) return;
+        if (client.player == null || client.level == null) return;
 
-        // Chest Stealer GUI Handler
-        if (testingChest && client.screen instanceof AbstractContainerScreen) {
-            guiDelayTicks--;
-            if (guiDelayTicks <= 0) {
-                AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.screen;
-                int containerSlots = screen.getMenu().slots.size() - 36;
-                while (chestSlotIndex < containerSlots && !screen.getMenu().slots.get(chestSlotIndex).hasItem()) {
-                    chestSlotIndex++;
-                }
-                if (chestSlotIndex < containerSlots) {
-                    Slot slot = screen.getMenu().slots.get(chestSlotIndex);
-                    safeClick(client, screen, slot);
-                    chestSlotIndex++;
-                    guiDelayTicks = 2 + (int)(Math.random() * 4); // Human 2-5 ticks delay
-                } else {
-                    client.player.closeContainer();
-                    testingChest = false;
-                    client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Chest Steal Test Complete!"));
+        // Chest Stealer GUI Handler (Bypasses IDLE state check)
+        if (testingChest) {
+            if (client.screen instanceof AbstractContainerScreen) {
+                guiDelayTicks--;
+                if (guiDelayTicks <= 0) {
+                    AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.screen;
+                    int containerSlots = screen.getMenu().slots.size() - 36;
+                    while (chestSlotIndex < containerSlots && !screen.getMenu().slots.get(chestSlotIndex).hasItem()) {
+                        chestSlotIndex++;
+                    }
+                    if (chestSlotIndex < containerSlots) {
+                        Slot slot = screen.getMenu().slots.get(chestSlotIndex);
+                        safeClick(client, screen, slot);
+                        chestSlotIndex++;
+                        guiDelayTicks = 4 + (int)(Math.random() * 5); // Humanized 4-8 ticks delay
+                    } else {
+                        client.player.closeContainer();
+                        testingChest = false;
+                        if (client.player != null) client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Chest Steal Complete!"));
+                    }
                 }
             }
             return;
         }
+
+        if (state == MacroState.IDLE) return;
 
         boolean isGuiState = (state == MacroState.WAITING_FOR_DESK || state == MacroState.DESK_DELAY || state == MacroState.WAITING_FOR_PLOT);
         if (client.screen != null && !isGuiState) { InputController.releaseAll(client); return; }
@@ -198,7 +202,7 @@ public class FarmingMacro {
             case REPLAYING: handleReplaying(client); break;
             case WAITING_FOR_DESK:
                 guiTimeoutTicks++;
-                if (client.screen instanceof AbstractContainerScreen) { guiDelayTicks = 10 + (int)(Math.random() * 15); state = MacroState.DESK_DELAY; } 
+                if (client.screen instanceof AbstractContainerScreen) { guiDelayTicks = 10 + (int)(Math.random() * 10); state = MacroState.DESK_DELAY; } 
                 else if (guiTimeoutTicks > 60) { state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch); }
                 break;
             case DESK_DELAY:
@@ -208,7 +212,7 @@ public class FarmingMacro {
                     for (Slot slot : screen.getMenu().slots) {
                         if (slot.getItem().getHoverName().getString().contains("Configure Plot")) { safeClick(client, screen, slot); found = true; break; }
                     }
-                    if (found) { guiDelayTicks = 15 + (int)(Math.random() * 15); state = MacroState.WAITING_FOR_PLOT; } 
+                    if (found) { guiDelayTicks = 15 + (int)(Math.random() * 10); state = MacroState.WAITING_FOR_PLOT; } 
                     else { client.player.closeContainer(); state = MacroState.ALIGNING; rotationHandler.startRotation(defaultYaw, defaultPitch); }
                 }
                 break;
@@ -279,12 +283,11 @@ public class FarmingMacro {
                         InputController.setPressed(client.options.keyUp, false);
                     }
 
-                    // 3. Vacuum Sucking
+                    // 3. Vacuum Sucking (ONLY when camera rotation is locked to prevent Grim RotationBreak)
                     double totalDist = client.player.distanceTo(currentTarget);
-                    if (totalDist <= 5.0) {
-                        if (!rotationHandler.isRotating()) {
-                            InputController.setPressed(client.options.keyUse, true);
-                        }
+                    boolean isAimLocked = !rotationHandler.isRotating();
+                    if (totalDist <= 5.0 && isAimLocked) {
+                        InputController.setPressed(client.options.keyUse, true);
                     } else {
                         InputController.setPressed(client.options.keyUse, false);
                     }
