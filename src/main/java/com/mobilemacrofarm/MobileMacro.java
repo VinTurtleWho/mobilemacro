@@ -52,6 +52,10 @@ public class MobileMacro implements ModInitializer {
                             FarmingMacro.getInstance().stop(client); 
                             client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Recording saved!")); 
                         } 
+                        else if (type.equals("chest")) { 
+                            FarmingMacro.getInstance().setTestingChest(true); 
+                            client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Open a chest now to test GUI clicks!")); 
+                        }
                         else if (type.equals("pestonly")) { 
                             FarmingMacro.getInstance().setPestOnly(true); 
                             client.player.sendSystemMessage(Component.literal("§a[MobileMacro] Mode set to PEST ONLY")); 
